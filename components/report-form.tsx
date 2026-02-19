@@ -32,8 +32,12 @@ export function ReportForm() {
 	const [coordinates, setCoordinates] = useState<{ lat: string, lng: string } | null>(null);
 	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-	// const [manualCoords, setManualCoords] = useState("");
+	// 👇 The Strict Coordinate States 👇
+	const [manualCoords, setManualCoords] = useState("");
+	const [approximateAddress, setApproximateAddress] = useState<string>("");
+	const [isFetchingAddress, setIsFetchingAddress] = useState(false);
 	const [isLocating, setIsLocating] = useState(false);
+
 
 	const [isAnalyzing, setIsAnalyzing] = useState(false);
 	const { startUpload, isUploading } = useUploadThing("wasteImage");
@@ -152,6 +156,25 @@ export function ReportForm() {
 		}, 500);
 	};
 
+	const fetchAddressFromCoords = async (lat: string, lng: string) => {
+		setIsFetchingAddress(true);
+		try {
+			// Ask OpenStreetMap what is at this exact spot
+			const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+			const data = await res.json();
+
+			if (data && data.display_name) {
+				setApproximateAddress(data.display_name);
+			} else {
+				setApproximateAddress("Unknown Location (Coordinates Saved)");
+			}
+		} catch (error) {
+			setApproximateAddress("Could not fetch address name, but coordinates are saved.");
+		} finally {
+			setIsFetchingAddress(false);
+		}
+	};
+
 	// When the user clicks a result from the dropdown
 	const selectOSMResult = (result: any) => {
 		setLocationQuery(result.display_name); // Put the full address in the input
@@ -163,23 +186,18 @@ export function ReportForm() {
 		setIsLocating(true);
 		if ("geolocation" in navigator) {
 			navigator.geolocation.getCurrentPosition(
-				async (position) => {
+				(position) => {
 					const lat = position.coords.latitude.toString();
 					const lng = position.coords.longitude.toString();
-					setCoordinates({ lat, lng });
 
-					// Ask OpenStreetMap to turn the coordinates into a real street address!
-					try {
-						const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-						const data = await res.json();
-						setLocationQuery(data.display_name || `GPS: ${lat}, ${lng}`);
-					} catch (error) {
-						setLocationQuery(`GPS: ${lat}, ${lng}`); // Fallback if API fails
-					}
+					setCoordinates({ lat, lng });
+					setManualCoords(`${lat}, ${lng}`); // Auto-fill the text box
+					fetchAddressFromCoords(lat, lng);  // Fetch the human-readable address
+
 					setIsLocating(false);
 				},
-				(_error) => {
-					alert("Could not get exact location. Please ensure location services are allowed.");
+				(error) => {
+					alert("Could not get location. Please ensure location services are enabled.");
 					setIsLocating(false);
 				},
 				{ enableHighAccuracy: true }
@@ -189,6 +207,21 @@ export function ReportForm() {
 			setIsLocating(false);
 		}
 	};
+
+	useEffect(() => {
+		const timeout = setTimeout(() => {
+			if (manualCoords.includes(',')) {
+				const [lat, lng] = manualCoords.split(',').map(s => s.trim());
+				// Verify they are actual numbers
+				if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+					setCoordinates({ lat, lng });
+					fetchAddressFromCoords(lat, lng);
+				}
+			}
+		}, 800);
+
+		return () => clearTimeout(timeout);
+	}, [manualCoords]);
 
 	// Animation Variants
 	const containerVariants: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
@@ -270,85 +303,87 @@ export function ReportForm() {
 						<Input id="additionalWaste" name="additionalWaste" value={additionalWaste} onChange={(e) => setAdditionalWaste(e.target.value)} placeholder="e.g., 3kg organic (Or type 'None')" required />
 					</motion.div>
 
-					{/* 👇 5. THE STRICT LOCATION SYSTEM 👇 */}
 					<motion.div variants={itemVariants} className="space-y-4 p-4 border border-emerald-100 bg-emerald-50/20 rounded-xl">
 						<div className="flex justify-between items-center">
 							<Label className="text-emerald-800 font-semibold">5. Exact Location (Required)</Label>
-							{coordinates && (
-								<Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shadow-sm transition-all duration-300">
-									<CheckCircle className="w-3 h-3 mr-1" /> Coordinates Secured
-								</Badge>
-							)}
 						</div>
 
-						{/* Search OR GPS Input Area */}
-						<div className="flex flex-col md:flex-row gap-2">
-							<div className="relative grow">
-								<MapPin className="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 z-10" />
+						{/* Input Area: Manual Coords OR GPS Button */}
+						<div className="flex flex-col md:flex-row gap-3 items-end">
+							<div className="relative flex-grow w-full">
+								<Label htmlFor="manualCoords" className="text-xs font-semibold text-gray-600 mb-1 block">Paste Coordinates (Lat, Lng)</Label>
+								<MapPin className="absolute left-3 top-8 h-4 w-4 text-emerald-500 z-10" />
 								<Input
-									value={locationQuery}
-									onChange={handleLocationType}
-									placeholder="Search for an address..."
+									id="manualCoords"
+									value={manualCoords}
+									onChange={(e) => setManualCoords(e.target.value)}
+									placeholder="e.g., 30.0444, 31.2357"
 									className="pl-9 bg-white"
 									autoComplete="off"
 								/>
-								{isSearchingOSM && <Loader2 className="absolute right-3 top-2.5 h-4 w-4 text-emerald-500 animate-spin z-10" />}
+							</div>
 
-								{/* OSM Dropdown */}
-								{osmResults.length > 0 && (
-									<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-emerald-200 shadow-xl rounded-md z-50 overflow-hidden">
-										<ul className="max-h-60 overflow-y-auto">
-											{osmResults.map((result) => (
-												<li key={result.place_id} onClick={() => selectOSMResult(result)} className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-sm text-gray-700 border-b border-gray-100 last:border-0 flex items-start gap-2">
-													<Search className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
-													<span className="line-clamp-2">{result.display_name}</span>
-												</li>
-											))}
-										</ul>
-									</div>
+							<div className="hidden md:flex pb-3 text-emerald-400 font-bold text-xs uppercase">
+								OR
+							</div>
+
+							<Button
+								type="button"
+								variant={coordinates ? "outline" : "default"}
+								onClick={handleGetLocation}
+								disabled={isLocating}
+								className={`w-full md:w-auto shrink-0 shadow-sm h-10 ${coordinates ? 'border-green-500 text-green-600 bg-green-50' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+							>
+								{isLocating ? (
+									<Loader2 className="w-4 h-4 animate-spin mr-2" />
+								) : coordinates ? (
+									<CheckCircle className="w-4 h-4 mr-2" />
+								) : (
+									<Navigation className="w-4 h-4 mr-2" />
 								)}
-							</div>
-
-							<div className="pt-2 md:pt-0">
-								<Button
-									type="button"
-									variant={coordinates ? "outline" : "default"}
-									onClick={handleGetLocation}
-									disabled={isLocating}
-									className={`w-full md:w-auto shrink-0 shadow-sm h-10 ${coordinates ? 'border-green-500 text-green-600 bg-green-50' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
-								>
-									{isLocating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Navigation className="w-4 h-4 mr-2" />}
-									Current Location
-								</Button>
-							</div>
+								Use Current Location
+							</Button>
 						</div>
 
-						{/* 👇 THE RESOLVED UI (Matches your suggestion perfectly!) 👇 */}
+						{/* The Acknowledgment UI */}
 						<AnimatePresence>
-							{coordinates && (
+							{(approximateAddress || isFetchingAddress) && (
 								<motion.div
-									initial={{ opacity: 0, height: 0, marginTop: 0 }}
-									animate={{ opacity: 1, height: "auto", marginTop: "1rem" }}
-									className="bg-white p-3 rounded-lg border border-emerald-200 shadow-inner flex flex-col gap-1"
+									initial={{ opacity: 0, height: 0 }}
+									animate={{ opacity: 1, height: "auto" }}
+									className="bg-white p-3 rounded-lg border border-emerald-200 shadow-inner flex flex-col gap-1 mt-2"
 								>
-									<span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Resolved Address:</span>
-									<span className="text-sm text-gray-800 font-medium">{locationQuery}</span>
-									<span className="text-xs text-gray-400 font-mono mt-1">
-										Lat: {parseFloat(coordinates.lat).toFixed(4)}, Lng: {parseFloat(coordinates.lng).toFixed(4)}
+									<span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+										Approximate Location Found:
 									</span>
+
+									{isFetchingAddress ? (
+										<div className="flex items-center text-sm text-gray-500">
+											<Loader2 className="w-4 h-4 animate-spin mr-2" /> Translating coordinates...
+										</div>
+									) : (
+										<span className="text-sm text-gray-800 font-medium">
+											{approximateAddress}
+										</span>
+									)}
 								</motion.div>
 							)}
 						</AnimatePresence>
 
 						{/* Hidden Payload for Database */}
-						<input type="hidden" name="location" value={locationQuery} />
+						{/* We use the fetched address as the string so the DB still has readable text */}
+						<input type="hidden" name="location" value={approximateAddress || manualCoords} />
 						<input type="hidden" name="latitude" value={coordinates?.lat || ""} />
 						<input type="hidden" name="longitude" value={coordinates?.lng || ""} />
 					</motion.div>
 
 					<motion.div variants={itemVariants}>
-						<Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 transition-transform active:scale-[0.98]" disabled={isPending || isUploading || !selectedFile || isAnalyzing || !coordinates}>
-							{isUploading || isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</> : "Submit Report & Earn Points"}
+						<Button
+							type="submit"
+							className="w-full bg-emerald-600 hover:bg-emerald-700"
+							disabled={isPending || isUploading || !selectedFile || isAnalyzing || !coordinates} // 👈 MUST have coordinates
+						>
+							{isUploading || isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</> : "Submit Report"}
 						</Button>
 					</motion.div>
 				</motion.form>
