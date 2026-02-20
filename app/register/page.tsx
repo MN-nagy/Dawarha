@@ -5,6 +5,10 @@ import { motion } from "framer-motion";
 import { GalleryVerticalEnd } from "lucide-react";
 
 export default function SignupPage() {
+
+
+
+
 	return (
 		<div className="relative min-h-screen w-full bg-white overflow-hidden flex items-center justify-center p-6 md:p-10">
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createUser } from "@/db/actions";
 import {
   Select,
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { toast } from "sonner";
 
 export function SignupForm({
   className,
@@ -26,8 +26,10 @@ export function SignupForm({
   const [state, formAction, isPending] = useActionState(createUser, null);
   const router = useRouter();
 
+
   useEffect(() => {
     if (state?.success) {
+      toast.success("Account Created successfully");
       const timer = setTimeout(() => {
         router.push("/login");
       }, 2000);

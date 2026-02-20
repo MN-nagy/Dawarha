@@ -12,6 +12,7 @@ import { MapPin, X, Sparkles, Loader2, Coins, Upload, CheckCircle, Search, Navig
 import { useUploadThing } from "@/lib/uploadthing";
 import { Badge } from "./ui/badge";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import { toast } from "sonner";
 
 export function ReportForm() {
 	const [state, formAction, isPending] = useActionState(createReport, null);
@@ -24,11 +25,12 @@ export function ReportForm() {
 	const [amount, setAmount] = useState<string>("");
 	const [description, setDescription] = useState<string>("");
 	const [additionalWaste, setAdditionalWaste] = useState<string>("");
+	const [scale, setScale] = useState<string>("small");
 
 	// 👇 NEW: OpenStreetMap States 👇
-	const [locationQuery, setLocationQuery] = useState("");
-	const [osmResults, setOsmResults] = useState<any[]>([]);
-	const [isSearchingOSM, setIsSearchingOSM] = useState(false);
+	const [_locationQuery, setLocationQuery] = useState("");
+	const [_osmResults, setOsmResults] = useState<any[]>([]);
+	const [_isSearchingOSM, setIsSearchingOSM] = useState(false);
 	const [coordinates, setCoordinates] = useState<{ lat: string, lng: string } | null>(null);
 	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -46,6 +48,9 @@ export function ReportForm() {
 	// Clear form on success
 	useEffect(() => {
 		if (state?.success) {
+			toast.success("Waste reported successfully!", {
+				description: "Thank you for keeping Dawarha clean. You've earned points!",
+			});
 			setSelectedFile(null);
 			setPreviewUrl(null);
 			setAmount("");
@@ -237,10 +242,13 @@ export function ReportForm() {
 				<motion.form ref={formRef} onSubmit={handleSubmit} className="space-y-6" variants={containerVariants} initial="hidden" animate="show">
 
 					{/* ... [Success/Error Messages] ... */}
-					<AnimatePresence>
-						{state?.success && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-green-50 text-green-700 p-3 rounded-md text-sm mb-4">🎉 {state.success}</motion.div>)}
-						{state?.error && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">⚠️ {state.error}</motion.div>)}
-					</AnimatePresence>
+					{ /* commented out for now "testing toast" */}
+					{/* <AnimatePresence> */}
+					{/* 	{state?.success && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-green-50 text-green-700 p-3 rounded-md text-sm mb-4">🎉 {state.success}</motion.div>)} */}
+					{/* 	{state?.error && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">⚠️ {state.error}</motion.div>)} */}
+					{/* </AnimatePresence> */}
+
+					<input type="hidden" name="scale" value={scale} />
 
 					{/* 1. Image Upload */}
 					<motion.div variants={itemVariants} className="space-y-2">
