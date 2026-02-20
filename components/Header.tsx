@@ -62,7 +62,11 @@ export default function Header({ user }: { user: any }) {
 								{/* Changed from Feed to Explore */}
 								<motion.div variants={itemVariants}>
 									<Link href="/explore" className="text-gray-600 hover:text-emerald-600 font-medium transition-colors">Explore</Link>
-								</motion.div>							</>
+								</motion.div>
+								<motion.div variants={itemVariants}>
+									<Link href="/settings" className="text-gray-600 hover:text-emerald-600 font-medium transition-colors">Settings</Link>
+								</motion.div>
+							</>
 						)}
 
 

@@ -1,0 +1,391 @@
+"use client";
+
+import { useState, useTransition, useEffect } from "react";
+import { updateProfileSettings, addCompanyLocation, removeCompanyLocation } from "@/db/actions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { User, Shield, MapPin, Leaf, Truck, Loader2, Save, Info, Trash2, CheckCircle, Navigation, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Map } from "lucide-react"; // A new icon for the button
+import dynamic from "next/dynamic";
+
+interface SettingsFormProps {
+	userId: number;
+	baseUser: { name: string; email: string };
+	initialProfile: any;
+	initialLocations: any[];
+}
+
+export function SettingsForm({ userId, baseUser, initialProfile, initialLocations }: SettingsFormProps) {
+	const [activeTab, setActiveTab] = useState<"general" | "role" | "logistics">("general");
+	const [isPending, startTransition] = useTransition();
+	const MiniMap = dynamic(() => import("./mini-map"), { ssr: false, loading: () => <div className="h-48 w-full bg-gray-100 animate-pulse rounded-md flex items-center justify-center text-xs text-gray-400">Loading map...</div> });
+
+	// Profile States
+	const [role, setRole] = useState<string>(initialProfile?.role || "member");
+	const [preferredWaste, setPreferredWaste] = useState<string>(initialProfile?.preferredWaste || "all");
+	const [capacity, setCapacity] = useState<string>(initialProfile?.capacity || "all");
+	const [companyType, setCompanyType] = useState<string>(initialProfile?.companyType || "for-profit");
+
+	// Location Manager States
+	const [savedLocations, setSavedLocations] = useState<any[]>(initialLocations || []);
+	const [isLocationLoading, setIsLocationLoading] = useState(false);
+
+	// Strict Coordinate States (Brought over from Report Form)
+	const [manualCoords, setManualCoords] = useState("");
+	const [coordinates, setCoordinates] = useState<{ lat: string, lng: string } | null>(null);
+	const [approximateAddress, setApproximateAddress] = useState<string>("");
+	const [isFetchingAddress, setIsFetchingAddress] = useState(false);
+	const [isLocating, setIsLocating] = useState(false);
+
+	// Sync saved locations if the server data updates (Next.js Server Action magic)
+	useEffect(() => {
+		setSavedLocations(initialLocations);
+	}, [initialLocations]);
+
+	// --- PROFILE SAVE ENGINE ---
+	const handleSaveProfile = () => {
+		startTransition(async () => {
+			const payloadRole = role;
+			const payloadWaste = role === "individual_collector" ? "all" : preferredWaste;
+			const payloadCapacity = role === "individual_collector" ? "small_under_20" : capacity;
+			const payloadCompanyType = role === "company_collector" ? companyType : null;
+
+			const result = await updateProfileSettings(userId, {
+				role: payloadRole,
+				preferredWaste: payloadWaste,
+				capacity: payloadCapacity,
+				companyType: payloadCompanyType,
+			});
+
+			if (result.success) {
+				toast.success("Profile Updated", { description: "Your settings have been saved successfully." });
+				if (role === 'member') setSavedLocations([]);
+			} else {
+				toast.error("Update Failed", { description: result.error });
+			}
+		});
+	};
+
+	// --- LOCATION SEARCH ENGINE ---
+	const fetchAddressFromCoords = async (lat: string, lng: string) => {
+		setIsFetchingAddress(true);
+		try {
+			const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+			const data = await res.json();
+			if (data && data.display_name) {
+				setApproximateAddress(data.display_name);
+			} else {
+				setApproximateAddress("Unknown Location (Coordinates Saved)");
+			}
+		} catch (error) {
+			setApproximateAddress("Could not fetch address name, but coordinates are saved.");
+		} finally {
+			setIsFetchingAddress(false);
+		}
+	};
+
+	const handleGetLocation = () => {
+		setIsLocating(true);
+		if ("geolocation" in navigator) {
+			navigator.geolocation.getCurrentPosition(
+				(position) => {
+					const lat = position.coords.latitude.toString();
+					const lng = position.coords.longitude.toString();
+					setCoordinates({ lat, lng });
+					setManualCoords(`${lat}, ${lng}`);
+					fetchAddressFromCoords(lat, lng);
+					setIsLocating(false);
+				},
+				(error) => {
+					toast.error("Could not get location. Please ensure location services are enabled.");
+					setIsLocating(false);
+				},
+				{ enableHighAccuracy: true }
+			);
+		} else {
+			toast.error("Geolocation is not supported by this browser.");
+			setIsLocating(false);
+		}
+	};
+
+	useEffect(() => {
+		const timeout = setTimeout(() => {
+			if (manualCoords.includes(',')) {
+				const [lat, lng] = manualCoords.split(',').map(s => s.trim());
+				if (lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+					setCoordinates({ lat, lng });
+					fetchAddressFromCoords(lat, lng);
+				}
+			}
+		}, 800);
+		return () => clearTimeout(timeout);
+	}, [manualCoords]);
+
+	// --- LOCATION DATABASE ENGINE ---
+	const handleAddLocationToDatabase = () => {
+		if (!coordinates || !approximateAddress) return;
+		setIsLocationLoading(true);
+		startTransition(async () => {
+			const result = await addCompanyLocation(userId, approximateAddress, coordinates.lat, coordinates.lng);
+			if (result.success) {
+				toast.success("Location added to your profile!");
+				// Clear the inputs for the next one
+				setManualCoords("");
+				setCoordinates(null);
+				setApproximateAddress("");
+			} else {
+				toast.error("Failed to add location.");
+			}
+			setIsLocationLoading(false);
+		});
+	};
+
+	const handleDeleteLocation = (locationId: number) => {
+		startTransition(async () => {
+			const result = await removeCompanyLocation(locationId, userId);
+			if (result.success) {
+				toast.success("Location removed.");
+			} else {
+				toast.error("Failed to remove location.");
+			}
+		});
+	};
+
+	const isSoloAtLimit = role === "individual_collector" && savedLocations.length >= 1;
+
+	return (
+		<div className="flex flex-col md:flex-row gap-6">
+
+			{/* SIDEBAR NAVIGATION */}
+			<Card className="w-full md:w-64 shrink-0 border-emerald-100 shadow-lg h-fit">
+				<CardContent className="p-4 space-y-2">
+					<div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 pt-2">Account Settings</div>
+					<button onClick={() => setActiveTab("general")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "general" ? "bg-emerald-50 text-emerald-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}><User className="w-4 h-4" /> General Info</button>
+					<button onClick={() => setActiveTab("role")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "role" ? "bg-emerald-50 text-emerald-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}><Shield className="w-4 h-4" /> Role Selection</button>
+					{role !== "member" && (
+						<button onClick={() => setActiveTab("logistics")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "logistics" ? "bg-emerald-50 text-emerald-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}><MapPin className="w-4 h-4" /> Logistics & Location</button>
+					)}
+				</CardContent>
+			</Card>
+
+			{/* MAIN CONTENT AREA */}
+			<Card className="flex-grow border-emerald-100 shadow-xl overflow-hidden min-h-[500px]">
+				<CardContent className="p-6 sm:p-8">
+
+					{/* TAB 1: GENERAL INFO */}
+					{activeTab === "general" && (
+						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+							<div><h2 className="text-xl font-bold text-gray-900">General Information</h2><p className="text-sm text-gray-500">Your personal identity and credentials.</p></div>
+							<div className="space-y-4 max-w-md">
+								<div className="space-y-1.5"><Label className="text-gray-700">Display Name</Label><Input value={baseUser.name} readOnly className="bg-gray-50 text-gray-600 cursor-not-allowed" /></div>
+								<div className="space-y-1.5"><Label className="text-gray-700">Email Address</Label><Input value={baseUser.email} readOnly className="bg-gray-50 text-gray-600 cursor-not-allowed" /></div>
+							</div>
+						</motion.div>
+					)}
+
+					{/* TAB 2: ROLE SELECTION */}
+					{activeTab === "role" && (
+						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+							<div><h2 className="text-xl font-bold text-gray-900">Platform Role</h2><p className="text-sm text-gray-500">How do you want to interact with the Dawarha ecosystem?</p></div>
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+								{/* Roles (Member, Solo, Company) */}
+								<div onClick={() => setRole("member")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "member" ? "border-emerald-500 bg-emerald-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-emerald-200 hover:bg-gray-50"}`}>
+									<div className={`p-3 rounded-full mb-3 ${role === "member" ? "bg-emerald-500 text-white" : "bg-gray-100 text-gray-500"}`}><Leaf className="w-5 h-5" /></div>
+									<h3 className="font-bold text-gray-900 text-sm mb-1">Standard Member</h3>
+									<p className="text-xs text-gray-500 mt-1">Report waste only.</p>
+								</div>
+								<div onClick={() => setRole("individual_collector")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "individual_collector" ? "border-indigo-500 bg-indigo-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-indigo-200 hover:bg-gray-50"}`}>
+									<div className={`p-3 rounded-full mb-3 ${role === "individual_collector" ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-500"}`}><User className="w-5 h-5" /></div>
+									<h3 className="font-bold text-gray-900 text-sm mb-1">Solo Collector</h3>
+									<p className="text-xs text-gray-500 mt-1">Personal vehicle pickups.</p>
+								</div>
+								<div onClick={() => setRole("company_collector")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "company_collector" ? "border-blue-500 bg-blue-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-blue-200 hover:bg-gray-50"}`}>
+									<div className={`p-3 rounded-full mb-3 ${role === "company_collector" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}><Truck className="w-5 h-5" /></div>
+									<h3 className="font-bold text-gray-900 text-sm mb-1">Company</h3>
+									<p className="text-xs text-gray-500 mt-1">Commercial trucking.</p>
+								</div>
+							</div>
+							<div className="pt-4 flex justify-end border-t border-gray-100">
+								<Button onClick={handleSaveProfile} disabled={isPending} className="bg-emerald-600 hover:bg-emerald-700">
+									{isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Save Role
+								</Button>
+							</div>
+						</motion.div>
+					)}
+
+					{/* TAB 3: LOGISTICS & LOCATION */}
+					{activeTab === "logistics" && role !== "member" && (
+						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+
+							{/* THE SOLO COLLECTOR VIEW */}
+							{role === "individual_collector" && (
+								<Alert className="bg-indigo-50 border-indigo-200">
+									<Info className="h-4 w-4 text-indigo-600" />
+									<AlertTitle className="text-indigo-800 font-bold">Solo Collector Restrictions Active</AlertTitle>
+									<AlertDescription className="text-indigo-700/80">
+										As an individual collector, you are automatically set to collect <strong>mixed materials</strong> for <strong>small loads (&lt; 20kg)</strong>. Please set your Base Location below to receive nearby pickup alerts.
+									</AlertDescription>
+								</Alert>
+							)}
+
+							{/* THE COMPANY VIEW */}
+							{role === "company_collector" && (
+								<div className="space-y-6">
+									<div><h2 className="text-xl font-bold text-gray-900">Company Logistics</h2><p className="text-sm text-gray-500">Configure your fleet capabilities and organization type.</p></div>
+									<div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+										<div className="space-y-2">
+											<Label>Target Material</Label>
+											<Select value={preferredWaste} onValueChange={setPreferredWaste}>
+												<SelectTrigger className="bg-white"><SelectValue placeholder="Select" /></SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">Mixed / Any</SelectItem>
+													<SelectItem value="plastic">Plastic</SelectItem>
+													<SelectItem value="metal">Metal</SelectItem>
+													<SelectItem value="paper">Paper/Cardboard</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+										<div className="space-y-2">
+											<Label>Hauling Capacity</Label>
+											<Select value={capacity} onValueChange={setCapacity}>
+												<SelectTrigger className="bg-white"><SelectValue placeholder="Select" /></SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">Any Size</SelectItem>
+													<SelectItem value="small_under_20">Small (&lt; 20kg)</SelectItem>
+													<SelectItem value="large_over_20">Large (&gt; 20kg)</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+										<div className="space-y-2">
+											<Label>Organization</Label>
+											<Select value={companyType} onValueChange={setCompanyType}>
+												<SelectTrigger className="bg-white"><SelectValue placeholder="Select Type" /></SelectTrigger>
+												<SelectContent>
+													<SelectItem value="for-profit">For-Profit</SelectItem>
+													<SelectItem value="non-profit">Non-Profit / NGO</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+									</div>
+									<div className="flex justify-end">
+										<Button onClick={handleSaveProfile} disabled={isPending} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+											{isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Update Logistics
+										</Button>
+									</div>
+								</div>
+							)}
+
+							<div className="h-px bg-gray-100 w-full my-6"></div>
+
+							{/* --- THE LOCATION MANAGER --- */}
+							<div>
+								<div className="flex justify-between items-center mb-4">
+									<div>
+										<h3 className="text-lg font-bold text-gray-900">Operating Locations</h3>
+										<p className="text-sm text-gray-500">{role === "individual_collector" ? "Set your home base." : "Add all your operational branch offices."}</p>
+									</div>
+									<div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+										{savedLocations.length} {role === "individual_collector" ? "/ 1 Location" : "Locations"} Saved
+									</div>
+								</div>
+
+								{/* List the already saved locations */}
+								{savedLocations.length > 0 && (
+									<div className="space-y-3 mb-6">
+										{savedLocations.map((loc) => (
+											<div key={loc.id} className="flex justify-between items-center bg-white border border-gray-200 rounded-lg p-4 shadow-sm group hover:border-emerald-300 transition-colors">
+												<div className="flex items-start gap-3">
+													<MapPin className="w-5 h-5 text-emerald-500 mt-0.5" />
+													<div>
+														<p className="text-sm font-semibold text-gray-900">{loc.address}</p>
+														<p className="text-xs text-gray-400 font-mono mt-0.5">
+															Lat: {parseFloat(loc.latitude).toFixed(4)}, Lng: {parseFloat(loc.longitude).toFixed(4)}
+														</p>
+													</div>
+												</div>
+
+												<div className="flex items-center gap-2">
+													{/* 👇 THE HOVER CARD MAP 👇 */}
+													<HoverCard>
+														<HoverCardTrigger asChild>
+															<Button variant="outline" size="icon" className="h-8 w-8 text-blue-500 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+																<Map className="w-4 h-4" />
+															</Button>
+														</HoverCardTrigger>
+														<HoverCardContent side="top" align="end" className="w-80 p-3 shadow-xl border-emerald-100 z-50">
+															<div className="space-y-2">
+																<h4 className="text-sm font-semibold text-gray-900">Location Verification</h4>
+																<MiniMap lat={parseFloat(loc.latitude)} lng={parseFloat(loc.longitude)} />
+																<p className="text-[10px] text-gray-400 text-center pt-1">Powered by OpenStreetMap</p>
+															</div>
+														</HoverCardContent>
+													</HoverCard>
+
+													<Button variant="ghost" size="icon" onClick={() => handleDeleteLocation(loc.id)} disabled={isPending} className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50">
+														<Trash2 className="w-4 h-4" />
+													</Button>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
+
+								{/* Add Location Form (Hidden if Solo Collector already has 1 location) */}
+								{!isSoloAtLimit && (
+									<div className="space-y-4 p-4 border border-emerald-100 bg-emerald-50/20 rounded-xl">
+										<Label className="text-emerald-800 font-semibold text-sm">Add New Location</Label>
+
+										<div className="flex flex-col md:flex-row gap-3 items-end">
+											<div className="relative flex-grow w-full">
+												<Label htmlFor="manualCoords" className="text-xs font-semibold text-gray-600 mb-1 block">Paste Coordinates (Lat, Lng)</Label>
+												<MapPin className="absolute left-3 top-8 h-4 w-4 text-emerald-500 z-10" />
+												<Input id="manualCoords" value={manualCoords} onChange={(e) => setManualCoords(e.target.value)} placeholder="e.g., 30.0444, 31.2357" className="pl-9 bg-white" autoComplete="off" />
+											</div>
+
+											<div className="hidden md:flex pb-3 text-emerald-400 font-bold text-xs uppercase">OR</div>
+
+											<Button type="button" variant={coordinates ? "outline" : "default"} onClick={handleGetLocation} disabled={isLocating} className={`w-full md:w-auto shrink-0 shadow-sm h-10 ${coordinates ? 'border-green-500 text-green-600 bg-green-50' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+												{isLocating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : coordinates ? <CheckCircle className="w-4 h-4 mr-2" /> : <Navigation className="w-4 h-4 mr-2" />}
+												Use Current Location
+											</Button>
+										</div>
+
+										<AnimatePresence>
+											{(approximateAddress || isFetchingAddress) && (
+												<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="bg-white p-4 rounded-lg border border-emerald-200 shadow-inner flex flex-col sm:flex-row justify-between items-center gap-4 mt-2">
+													<div className="flex flex-col gap-1 w-full">
+														<span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Approximate Location Found:</span>
+														{isFetchingAddress ? (
+															<div className="flex items-center text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Translating coordinates...</div>
+														) : (
+															<span className="text-sm text-gray-800 font-medium">{approximateAddress}</span>
+														)}
+													</div>
+
+													{/* Independent Save Button just for this location */}
+													{coordinates && approximateAddress && !isFetchingAddress && (
+														<Button onClick={handleAddLocationToDatabase} disabled={isLocationLoading} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap">
+															{isLocationLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />} Add to Profile
+														</Button>
+													)}
+												</motion.div>
+											)}
+										</AnimatePresence>
+									</div>
+								)}
+							</div>
+
+						</motion.div>
+					)}
+				</CardContent>
+			</Card>
+		</div>
+	);
+}

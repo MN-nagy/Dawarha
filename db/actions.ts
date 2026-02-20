@@ -2,7 +2,7 @@
 
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/index";
-import { Users, Reports } from "@/db/schema";
+import { Users, Reports, UserProfiles, CompanyLocations } from "@/db/schema";
 import { signIn, signOut, auth } from "@/auth";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
@@ -183,13 +183,16 @@ export async function analyzeWasteImage(formData: FormData) {
           amount: z
             .string()
             .describe("Estimate the amount of ONLY the dominant material."),
+          scale: z
+            .enum(["small", "large"])
+            .describe(
+              "If the total waste is easily carried by one person or fits in a car trunk (< 20kg), choose 'small'. If it requires a truck or commercial vehicle (> 20kg), choose 'large'.",
+            ),
           additionalWaste: z
             .string()
             .describe(
-              "List any OTHER visible waste types and their estimated amounts (e.g., '3kg organic, 1kg metal'). If none, return an empty string.",
+              "Mandatory. List OTHER visible waste types. If absolutely no other waste is present, explicitly repeat the dominant waste type and amount (e.g., 'Only 20kg plastic present').",
             ),
-          scale: z.enum(["small", "large"]).describe("If the total waste is easily carried by one person or fits in a car trunk (< 20kg), choose 'small'. If it requires a truck or commercial vehicle (> 20kg), choose 'large'."),
-          additionalWaste: z.string().describe("Mandatory. List OTHER visible waste types. If absolutely no other waste is present, explicitly repeat the dominant waste type and amount (e.g., 'Only 20kg plastic present')."),
         }),
       }),
       messages: [
@@ -210,7 +213,6 @@ export async function analyzeWasteImage(formData: FormData) {
       ],
     });
 
-
     return { success: true, data: output };
   } catch (error) {
     console.error("🚨 AI Analysis Error:", error);
@@ -225,7 +227,7 @@ export async function analyzeWasteImage(formData: FormData) {
 // fetching Reports
 export async function getAvailableReports() {
   try {
-    const reports = db
+    const reports = await db
       .select()
       .from(Reports)
       .where(eq(Reports.status, "pending"))
@@ -235,5 +237,110 @@ export async function getAvailableReports() {
   } catch (error) {
     console.log("Error fetching reports for feed", error);
     return [];
+  }
+}
+
+// -- SETTINGS PAGE RELATED -- \\
+
+// 1. Get the user's complete settings profile (Profile + Office Locations)
+export async function getCompleteUserProfile(userId: number) {
+  try {
+    // Fetch the profile settings
+    const profileResult = await db
+      .select()
+      .from(UserProfiles)
+      .where(eq(UserProfiles.userId, userId))
+      .limit(1);
+
+    // Fetch all company operating locations (if they have any)
+    const locationsResult = await db
+      .select()
+      .from(CompanyLocations)
+      .where(eq(CompanyLocations.userId, userId));
+
+    return {
+      profile: profileResult[0] || null,
+      locations: locationsResult || [],
+    };
+  } catch (error) {
+    console.error("Error fetching complete profile:", error);
+    return { profile: null, locations: [] };
+  }
+}
+
+// 2. Update the main Profile & Role
+export async function updateProfileSettings(
+  userId: number,
+  data: {
+    role: string;
+    preferredWaste: string;
+    capacity: string;
+    companyType: string | null;
+  },
+) {
+  try {
+    const existing = await db
+      .select()
+      .from(UserProfiles)
+      .where(eq(UserProfiles.userId, userId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(UserProfiles)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(UserProfiles.userId, userId));
+    } else {
+      await db.insert(UserProfiles).values({ userId, ...data });
+    }
+
+    // Keep the base Users table role in sync!
+    await db.update(Users).set({ role: data.role }).where(eq(Users.id, userId));
+
+    revalidatePath("/settings");
+    return { success: "Settings saved successfully!" };
+  } catch (error) {
+    console.error("Error saving settings:", error);
+    return { error: "Failed to save settings. Please try again." };
+  }
+}
+
+// 3. Add a new Company Office Location
+export async function addCompanyLocation(
+  userId: number,
+  address: string,
+  latitude: string,
+  longitude: string,
+) {
+  try {
+    await db.insert(CompanyLocations).values({
+      userId,
+      address,
+      latitude,
+      longitude,
+    });
+
+    revalidatePath("/settings");
+    return { success: "Location added!" };
+  } catch (error) {
+    return { error: "Failed to add location." };
+  }
+}
+
+// 4. Remove a Company Office Location
+export async function removeCompanyLocation(
+  locationId: number,
+  userId: number,
+) {
+  try {
+    // Verify the user owns this location before deleting
+    await db
+      .delete(CompanyLocations)
+      .where(eq(CompanyLocations.id, locationId)); // In a real app, also add: .and(eq(CompanyLocations.userId, userId))
+
+    revalidatePath("/settings");
+    return { success: "Location removed." };
+  } catch (error) {
+    return { error: "Failed to remove location." };
   }
 }

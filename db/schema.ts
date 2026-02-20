@@ -3,7 +3,6 @@ import {
   serial,
   text,
   varchar,
-  primaryKey,
   integer,
   timestamp,
   boolean,
@@ -77,4 +76,41 @@ export const Notifications = pgTable("notifications", {
   type: varchar("type", { length: 50 }).notNull(),
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// --- THE USER PROFILE TABLE (1-to-1 with your main User table) ---
+export const UserProfiles = pgTable("user_profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .references(() => Users.id)
+    .notNull()
+    .unique(),
+
+  // Base Identity
+  role: text("role").notNull().default("member"), // 'member', 'individual_collector', 'company_collector'
+
+  // Collector Logistics
+  preferredWaste: text("preferred_waste").default("all"), // 'plastic', 'metal', etc.
+  capacity: text("capacity").default("all"), // 'small_under_20', 'large_over_20', 'all'
+
+  // Company Specifics
+  companyType: text("company_type"), // 'for-profit', 'non-profit'
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// --- THE COMPANY LOCATIONS TABLE (1-to-Many with UserProfiles) ---
+export const CompanyLocations = pgTable("company_locations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .references(() => Users.id)
+    .notNull(), // This links back to the user
+
+  // The exact same structure we used for the Reports!
+  address: text("address").notNull(),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+
+  createdAt: timestamp("created_at").defaultNow(),
 });

@@ -13,6 +13,9 @@ import { useUploadThing } from "@/lib/uploadthing";
 import { Badge } from "./ui/badge";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { toast } from "sonner";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Map } from "lucide-react"; // <-- Make sure to add Map to your lucide-react imports!
+import dynamic from "next/dynamic";
 
 export function ReportForm() {
 	const [state, formAction, isPending] = useActionState(createReport, null);
@@ -44,6 +47,10 @@ export function ReportForm() {
 	const [isAnalyzing, setIsAnalyzing] = useState(false);
 	const { startUpload, isUploading } = useUploadThing("wasteImage");
 	const formRef = useRef<HTMLFormElement>(null);
+
+
+	// Dynamically import the map so it doesn't crash Next.js SSR
+	const MiniMap = dynamic(() => import("./mini-map"), { ssr: false, loading: () => <div className="h-48 w-full bg-gray-100 animate-pulse rounded-md flex items-center justify-center text-xs text-gray-400">Loading map...</div> });
 
 	// Clear form on success
 	useEffect(() => {
@@ -353,26 +360,45 @@ export function ReportForm() {
 							</Button>
 						</div>
 
-						{/* The Acknowledgment UI */}
 						<AnimatePresence>
 							{(approximateAddress || isFetchingAddress) && (
 								<motion.div
 									initial={{ opacity: 0, height: 0 }}
 									animate={{ opacity: 1, height: "auto" }}
-									className="bg-white p-3 rounded-lg border border-emerald-200 shadow-inner flex flex-col gap-1 mt-2"
+									className="bg-white p-3 rounded-lg border border-emerald-200 shadow-inner flex justify-between items-center gap-4 mt-2"
 								>
-									<span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-										Approximate Location Found:
-									</span>
-
-									{isFetchingAddress ? (
-										<div className="flex items-center text-sm text-gray-500">
-											<Loader2 className="w-4 h-4 animate-spin mr-2" /> Translating coordinates...
-										</div>
-									) : (
-										<span className="text-sm text-gray-800 font-medium">
-											{approximateAddress}
+									<div className="flex flex-col gap-1 w-full">
+										<span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+											Approximate Location Found:
 										</span>
+
+										{isFetchingAddress ? (
+											<div className="flex items-center text-sm text-gray-500">
+												<Loader2 className="w-4 h-4 animate-spin mr-2" /> Translating coordinates...
+											</div>
+										) : (
+											<span className="text-sm text-gray-800 font-medium">
+												{approximateAddress}
+											</span>
+										)}
+									</div>
+
+									{/* 👇 THE HOVER CARD MAP 👇 */}
+									{coordinates && !isFetchingAddress && (
+										<HoverCard>
+											<HoverCardTrigger asChild>
+												<Button type="button" variant="outline" size="icon" className="shrink-0 h-10 w-10 text-blue-500 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+													<Map className="w-5 h-5" />
+												</Button>
+											</HoverCardTrigger>
+											<HoverCardContent side="top" align="end" className="w-80 p-3 shadow-xl border-emerald-100 z-50">
+												<div className="space-y-2">
+													<h4 className="text-sm font-semibold text-gray-900">Location Verification</h4>
+													<MiniMap lat={parseFloat(coordinates.lat)} lng={parseFloat(coordinates.lng)} />
+													<p className="text-[10px] text-gray-400 text-center pt-1">Powered by OpenStreetMap</p>
+												</div>
+											</HoverCardContent>
+										</HoverCard>
 									)}
 								</motion.div>
 							)}
