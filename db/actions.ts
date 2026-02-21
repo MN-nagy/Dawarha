@@ -11,6 +11,11 @@ import { revalidatePath } from "next/cache";
 import { generateText, Output } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
+import { Resend } from "resend";
+import crypto from "crypto";
+import { VerificationTokens } from "@/db/schema"; // Ensure this is imported!
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function getUserByEmail(email: string) {
   const existingUser = await db
@@ -342,5 +347,140 @@ export async function removeCompanyLocation(
     return { success: "Location removed." };
   } catch (error) {
     return { error: "Failed to remove location." };
+  }
+}
+
+// --- IAM (IDENTITY & ACCESS MANAGEMENT) ---
+
+export async function updateUserName(userId: number, newName: string) {
+  try {
+    await db.update(Users).set({ name: newName }).where(eq(Users.id, userId));
+    revalidatePath("/settings");
+    return { success: "Name updated successfully!" };
+  } catch (error) {
+    return { error: "Failed to update name." };
+  }
+}
+
+export async function requestEmailChange(
+  userId: number,
+  currentEmail: string,
+  newEmail: string,
+) {
+  try {
+    // 1. Generate a secure random token
+    const token = crypto.randomBytes(32).toString("hex");
+    const OneHourInMs = 60 * 60 * 1000;
+    const expires = new Date(Date.now() + OneHourInMs); // Expires in 1 hour
+
+    // 2. Save to database
+    await db.insert(VerificationTokens).values({
+      identifier: newEmail,
+      token,
+      expires,
+      type: "email_change",
+    });
+
+    // 3. Send the email (In production, replace 'onboarding@resend.dev' with your verified domain)
+    const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}&type=email&id=${userId}`;
+
+    await resend.emails.send({
+      from: "Dawarha Security <onboarding@resend.dev>",
+      to: newEmail,
+      subject: "Verify your new email address",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; text-align: center;">
+            <div style="width: 48px; height: 48px; background-color: #d1fae5; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <span style="font-size: 24px;">♻️</span>
+            </div>
+            <h2 style="color: #064e3b; margin-top: 0; margin-bottom: 16px; font-size: 24px;">Update Your Email</h2>
+            <p style="color: #4b5563; font-size: 16px; line-height: 1.5; margin-bottom: 32px;">
+                You recently requested to change the email address associated with your Dawarha account. Click the button below to verify this new address.
+            </p>
+            <a href="${verifyLink}" style="background-color: #059669; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; transition: background-color 0.2s;">
+                Verify Email Address
+            </a>
+            <p style="color: #9ca3af; font-size: 13px; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 24px;">
+                If you did not request this change, you can safely ignore this email. Your account remains secure.
+            </p>
+        </div>
+      `,
+    });
+
+    return { success: "Verification link sent to your new email!" };
+  } catch (error) {
+    console.error(error);
+    return { error: "Failed to send verification email." };
+  }
+}
+
+export async function requestPasswordReset(email: string) {
+  try {
+    const user = await getUserByEmail(email);
+    if (!user)
+      return { error: "If an account exists, a reset link has been sent." }; // Security best practice: don't reveal if email exists
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const OneHourInMs = 60 * 60 * 1000;
+    const expires = new Date(Date.now() + OneHourInMs);
+
+    await db.insert(VerificationTokens).values({
+      identifier: email,
+      token,
+      expires,
+      type: "password_reset",
+    });
+
+    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}&type=password`;
+
+// Replace the old resend.emails.send block with this:
+    await resend.emails.send({
+      from: "Dawarha Support <onboarding@resend.dev>",
+      to: email,
+      subject: "Reset your Dawarha password",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; text-align: center;">
+            <div style="width: 48px; height: 48px; background-color: #e0e7ff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <span style="font-size: 24px;">🔐</span>
+            </div>
+            <h2 style="color: #1e3a8a; margin-top: 0; margin-bottom: 16px; font-size: 24px;">Password Reset Request</h2>
+            <p style="color: #4b5563; font-size: 16px; line-height: 1.5; margin-bottom: 32px;">
+                We received a request to reset the password for your Dawarha account. Click the button below to securely set a new password.
+            </p>
+            <a href="${resetLink}" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+                Reset Password
+            </a>
+            <p style="color: #9ca3af; font-size: 13px; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 24px;">
+                If you did not request a password reset, please ignore this email. This link will expire in 1 hour.
+            </p>
+        </div>
+      `,
+    });
+
+    return { success: "Password reset link sent to your email!" };
+  } catch (error) {
+    return { error: "Failed to send reset email." };
+  }
+}
+
+// --- KYB (KNOW YOUR BUSINESS) ACTIONS ---
+export async function submitCompanyVerification(
+  userId: number,
+  documentUrl: string,
+) {
+  try {
+    await db
+      .update(UserProfiles)
+      .set({
+        verificationDocumentUrl: documentUrl,
+        verificationStatus: "pending",
+        updatedAt: new Date(),
+      })
+      .where(eq(UserProfiles.userId, userId));
+
+    revalidatePath("/settings");
+    return { success: "Documents submitted! Status is now Pending." };
+  } catch (error) {
+    return { error: "Failed to submit verification documents." };
   }
 }

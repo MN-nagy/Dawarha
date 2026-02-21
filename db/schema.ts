@@ -96,6 +96,11 @@ export const UserProfiles = pgTable("user_profiles", {
   // Company Specifics
   companyType: text("company_type"), // 'for-profit', 'non-profit'
 
+  verificationStatus: varchar("verification_status", { length: 50 })
+    .notNull()
+    .default("unverified"), // 'unverified', 'pending', 'verified', 'rejected'
+  verificationDocumentUrl: text("verification_document_url"), // URL from UploadThing
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -113,4 +118,13 @@ export const CompanyLocations = pgTable("company_locations", {
   longitude: text("longitude").notNull(),
 
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// --- VERIFICATION TOKENS (For Email changes and Password resets) ---
+export const VerificationTokens = pgTable("verification_tokens", {
+  id: serial("id").primaryKey(),
+  identifier: varchar("identifier", { length: 255 }).notNull(), // The user's email
+  token: varchar("token", { length: 255 }).notNull().unique(), // The secure random string
+  expires: timestamp("expires").notNull(), // When the link dies (e.g., 1 hour)
+  type: varchar("type", { length: 50 }).notNull(), // 'email_change' or 'password_reset'
 });

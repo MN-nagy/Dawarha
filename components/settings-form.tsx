@@ -14,6 +14,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Map } from "lucide-react"; // A new icon for the button
 import dynamic from "next/dynamic";
+import { updateUserName, requestEmailChange, requestPasswordReset, submitCompanyVerification } from "@/db/actions";
+import { useUploadThing } from "@/lib/uploadthing";
+import { Upload, Clock, ShieldCheck } from "lucide-react";
 
 interface SettingsFormProps {
 	userId: number;
@@ -43,6 +46,18 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 	const [approximateAddress, setApproximateAddress] = useState<string>("");
 	const [isFetchingAddress, setIsFetchingAddress] = useState(false);
 	const [isLocating, setIsLocating] = useState(false);
+
+
+	// resend
+	const [name, setName] = useState(baseUser.name);
+	const [newEmail, setNewEmail] = useState("");
+	const [isEditingName, setIsEditingName] = useState(false);
+	const [isEditingEmail, setIsEditingEmail] = useState(false);
+	const [verificationStatus, setVerificationStatus] = useState(initialProfile?.verificationStatus || "unverified");
+
+	// UploadThing Hook for Company Documents
+	const { startUpload, isUploading } = useUploadThing("companyDocument");
+	const [selectedDoc, setSelectedDoc] = useState<File | null>(null);
 
 	// Sync saved locations if the server data updates (Next.js Server Action magic)
 	useEffect(() => {
@@ -103,7 +118,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 					fetchAddressFromCoords(lat, lng);
 					setIsLocating(false);
 				},
-				(error) => {
+				(_error) => {
 					toast.error("Could not get location. Please ensure location services are enabled.");
 					setIsLocating(false);
 				},
@@ -176,16 +191,64 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 			</Card>
 
 			{/* MAIN CONTENT AREA */}
-			<Card className="flex-grow border-emerald-100 shadow-xl overflow-hidden min-h-[500px]">
+			<Card className="grow border-emerald-100 shadow-xl overflow-hidden min-h-125">
 				<CardContent className="p-6 sm:p-8">
 
-					{/* TAB 1: GENERAL INFO */}
+					{/* --- TAB 1: GENERAL INFO (PREMIUM SaaS REDESIGN) --- */}
 					{activeTab === "general" && (
-						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-							<div><h2 className="text-xl font-bold text-gray-900">General Information</h2><p className="text-sm text-gray-500">Your personal identity and credentials.</p></div>
-							<div className="space-y-4 max-w-md">
-								<div className="space-y-1.5"><Label className="text-gray-700">Display Name</Label><Input value={baseUser.name} readOnly className="bg-gray-50 text-gray-600 cursor-not-allowed" /></div>
-								<div className="space-y-1.5"><Label className="text-gray-700">Email Address</Label><Input value={baseUser.email} readOnly className="bg-gray-50 text-gray-600 cursor-not-allowed" /></div>
+						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+							<div>
+								<h2 className="text-xl font-bold text-gray-900">General Information</h2>
+								<p className="text-sm text-gray-500">Manage your identity and security credentials.</p>
+							</div>
+
+							<div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm max-w-2xl">
+
+								{/* NAME ROW */}
+								<div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+									<div>
+										<p className="text-sm font-semibold text-gray-900">Display Name</p>
+										{!isEditingName && <p className="text-sm text-gray-500 mt-1">{name}</p>}
+									</div>
+									{isEditingName ? (
+										<div className="flex items-center gap-2 w-full sm:w-auto">
+											<Input value={name} onChange={(e) => setName(e.target.value)} className="w-full sm:w-48 h-9" />
+											<Button size="sm" variant="ghost" onClick={() => { setName(baseUser.name); setIsEditingName(false); }}>Cancel</Button>
+											<Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => startTransition(async () => { const res = await updateUserName(userId, name); if (res.success) { toast.success(res.success); setIsEditingName(false); } else toast.error(res.error); })} disabled={isPending || name === baseUser.name}>Save</Button>
+										</div>
+									) : (
+										<Button variant="outline" size="sm" onClick={() => setIsEditingName(true)}>Change Name</Button>
+									)}
+								</div>
+
+								{/* EMAIL ROW */}
+								<div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+									<div className="grow">
+										<p className="text-sm font-semibold text-gray-900">Email Address</p>
+										{!isEditingEmail && <p className="text-sm text-gray-500 mt-1">{baseUser.email}</p>}
+									</div>
+									{isEditingEmail ? (
+										<div className="flex items-center gap-2 w-full sm:w-auto">
+											<Input placeholder="New email..." type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="w-full sm:w-48 h-9" />
+											<Button size="sm" variant="ghost" onClick={() => { setNewEmail(""); setIsEditingEmail(false); }}>Cancel</Button>
+											<Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap" onClick={() => startTransition(async () => { const res = await requestEmailChange(userId, baseUser.email, newEmail); if (res.success) { toast.success(res.success); setIsEditingEmail(false); } else toast.error(res.error); })} disabled={isPending || !newEmail || newEmail === baseUser.email}>Verify Email</Button>
+										</div>
+									) : (
+										<Button variant="outline" size="sm" onClick={() => setIsEditingEmail(true)}>Change Email</Button>
+									)}
+								</div>
+
+								{/* PASSWORD ROW */}
+								<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
+									<div>
+										<p className="text-sm font-semibold text-gray-900">Password</p>
+										<p className="text-sm text-gray-500 mt-1">••••••••••••</p>
+									</div>
+									<Button variant="outline" size="sm" onClick={() => startTransition(async () => { const res = await requestPasswordReset(baseUser.email); res.success ? toast.success(res.success) : toast.error(res.error); })} disabled={isPending}>
+										Change Password
+									</Button>
+								</div>
+
 							</div>
 						</motion.div>
 					)}
@@ -193,7 +256,11 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 					{/* TAB 2: ROLE SELECTION */}
 					{activeTab === "role" && (
 						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-							<div><h2 className="text-xl font-bold text-gray-900">Platform Role</h2><p className="text-sm text-gray-500">How do you want to interact with the Dawarha ecosystem?</p></div>
+							<div>
+								<h2 className="text-xl font-bold text-gray-900">Platform Role</h2>
+								<p className="text-sm text-gray-500">How do you want to interact with the Dawarha ecosystem?</p>
+							</div>
+
 							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 								{/* Roles (Member, Solo, Company) */}
 								<div onClick={() => setRole("member")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "member" ? "border-emerald-500 bg-emerald-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-emerald-200 hover:bg-gray-50"}`}>
@@ -212,11 +279,19 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 									<p className="text-xs text-gray-500 mt-1">Commercial trucking.</p>
 								</div>
 							</div>
-							<div className="pt-4 flex justify-end border-t border-gray-100">
-								<Button onClick={handleSaveProfile} disabled={isPending} className="bg-emerald-600 hover:bg-emerald-700">
-									{isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Save Role
-								</Button>
-							</div>
+
+							{/* 👇 NEW: Logistics Warning UI 👇 */}
+							{role !== "member" && (
+								<div className="pt-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-100">
+									<div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-md border border-amber-100">
+										<Info className="w-4 h-4 shrink-0" />
+										<span className="text-xs font-medium">Please complete your Logistics & Location settings after saving to activate this role.</span>
+									</div>
+								</div>
+							)}
+							<Button onClick={handleSaveProfile} disabled={isPending} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 shrink-0">
+								{isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Save Role
+							</Button>
 						</motion.div>
 					)}
 
@@ -282,7 +357,79 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 								</div>
 							)}
 
-							<div className="h-px bg-gray-100 w-full my-6"></div>
+							{/* --- COMPANY TAB (KYB UPDATE) - ONLY VISIBLE TO COMPANIES --- */}
+							{role === "company_collector" && (
+								<>
+									<div className="h-px bg-gray-100 w-full my-6"></div>
+
+									<div>
+										<div className="flex items-center gap-2 mb-4">
+											<h3 className="text-lg font-bold text-gray-900">KYB Verification (Required)</h3>
+											<HoverCard>
+												<HoverCardTrigger asChild>
+													<button type="button" className="text-gray-400 hover:text-blue-600 transition-colors focus:outline-none">
+														<Info className="w-4 h-4" />
+													</button>
+												</HoverCardTrigger>
+												<HoverCardContent side="top" align="center" className="w-80 p-4 shadow-xl border-emerald-100 z-50">
+													<div className="space-y-2">
+														<h4 className="text-sm font-semibold text-gray-900">Accepted Documents</h4>
+														<p className="text-xs text-gray-600 leading-relaxed">
+															Please provide a clear copy of your <strong>Commercial Register (Sijil Tijari)</strong>, <strong>Tax ID (Bitaqa Daribiya)</strong>, or official <strong>NGO Registration</strong>.
+														</p>
+														<p className="text-[10px] text-emerald-600 font-medium pt-1">Formats: PDF, JPG, PNG (Max 4MB)</p>
+													</div>
+												</HoverCardContent>
+											</HoverCard>
+										</div>
+
+										{verificationStatus === "verified" && (
+											<Alert className="bg-emerald-50 border-emerald-200">
+												<ShieldCheck className="h-4 w-4 text-emerald-600" />
+												<AlertTitle className="text-emerald-800 font-bold">Business Verified</AlertTitle>
+												<AlertDescription className="text-emerald-700">Your commercial documents have been approved. Your account has full access to the Explore map.</AlertDescription>
+											</Alert>
+										)}
+
+										{verificationStatus === "pending" && (
+											<Alert className="bg-amber-50 border-amber-200">
+												<Clock className="h-4 w-4 text-amber-600" />
+												<AlertTitle className="text-amber-800 font-bold">Verification Pending</AlertTitle>
+												<AlertDescription className="text-amber-700">Our team is reviewing your documents. You can report waste and use Explore, but the <strong>Collect</strong> feature is locked until approved.</AlertDescription>
+											</Alert>
+										)}
+
+										{(verificationStatus === "unverified" || verificationStatus === "rejected") && (
+											<div className="p-6 border border-gray-200 rounded-xl bg-gray-50">
+												<p className="text-sm text-gray-600 mb-4">Please upload your Commercial Register or NGO documentation to unlock platform features.</p>
+
+												<div className="flex flex-col gap-4">
+													<Input type="file" accept=".pdf,image/*" onChange={(e) => setSelectedDoc(e.target.files?.[0] || null)} />
+													<Button
+														disabled={!selectedDoc || isUploading || isPending}
+														onClick={async () => {
+															if (!selectedDoc) return;
+															try {
+																const uploadRes = await startUpload([selectedDoc]);
+																if (uploadRes && uploadRes[0]) {
+																	const dbRes = await submitCompanyVerification(userId, uploadRes[0].ufsUrl);
+																	if (dbRes.success) {
+																		toast.success(dbRes.success);
+																		setVerificationStatus("pending");
+																	}
+																}
+															} catch (e) { toast.error("Upload failed"); }
+														}}
+														className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+													>
+														{isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Submit Document
+													</Button>
+												</div>
+											</div>
+										)}
+									</div>
+								</>
+							)}
 
 							{/* --- THE LOCATION MANAGER --- */}
 							<div>
@@ -343,7 +490,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 										<Label className="text-emerald-800 font-semibold text-sm">Add New Location</Label>
 
 										<div className="flex flex-col md:flex-row gap-3 items-end">
-											<div className="relative flex-grow w-full">
+											<div className="relative grow w-full">
 												<Label htmlFor="manualCoords" className="text-xs font-semibold text-gray-600 mb-1 block">Paste Coordinates (Lat, Lng)</Label>
 												<MapPin className="absolute left-3 top-8 h-4 w-4 text-emerald-500 z-10" />
 												<Input id="manualCoords" value={manualCoords} onChange={(e) => setManualCoords(e.target.value)} placeholder="e.g., 30.0444, 31.2357" className="pl-9 bg-white" autoComplete="off" />

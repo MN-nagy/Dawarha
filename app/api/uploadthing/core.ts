@@ -26,6 +26,15 @@ export const ourFileRouter = {
       // Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
+
+  // resend
+  companyDocument: f({
+    pdf: { maxFileSize: "4MB" },
+    image: { maxFileSize: "4MB" },
+  }).onUploadComplete(async ({ metadata, file }) => {
+    console.log("Document uploaded:", file.ufsUrl);
+    return { fileUrl: file.ufsUrl };
+  }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
