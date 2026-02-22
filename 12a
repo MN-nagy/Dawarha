@@ -1,6 +1,0 @@
-DATABASE_URL=postgresql://neondb_owner:npg_m0OgFQUYKq1u@ep-falling-frost-aiu2kh3u-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-AUTH_SECRET="YCJ/cETHBSdLokeLcxrRkf+0ONsd3HkxOZI46SZLpwI="
-UPLOADTHING_TOKEN='eyJhcGlLZXkiOiJza19saXZlXzFiNjNlOWI4ODBkZjAxYTZkMmMyN2IzNGRjMzdjMWM1MjA4YzIzMjY3Mzk4MzE4MzJiNTJlZDNlOWM5YTg0MjUiLCJhcHBJZCI6IjJtb29ycHoxazEiLCJyZWdpb25zIjpbInNlYTEiXX0='
-GOOGLE_GENERATIVE_AI_API_KEY=AIzaSyDm1P6Mqn-Way8QMXgX1maeaVq1tmFct3U
-RESEND_API_KEY=re_6XFz4bnk_5VkP1RHVPtqKVR74jPDt7yuT
-NEXT_PUBLIC_APP_URL=http://localhost:3000

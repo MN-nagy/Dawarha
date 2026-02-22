@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MapPin, X, Sparkles, Loader2, Coins, Upload, CheckCircle, Search, Navigation } from "lucide-react";
+import { MapPin, X, Sparkles, Loader2, Coins, Upload, CheckCircle, Navigation } from "lucide-react"; // import search if you reEnable the search functionality
 import { useUploadThing } from "@/lib/uploadthing";
 import { Badge } from "./ui/badge";
 import { motion, AnimatePresence, Variants } from "framer-motion";
@@ -29,13 +29,14 @@ export function ReportForm() {
 	const [description, setDescription] = useState<string>("");
 	const [additionalWaste, setAdditionalWaste] = useState<string>("");
 	const [scale, setScale] = useState<string>("small");
+	const [totalWasteAmount, setTotalWasteAmount] = useState<string>("");
 
 	// 👇 NEW: OpenStreetMap States 👇
 	const [_locationQuery, setLocationQuery] = useState("");
 	const [_osmResults, setOsmResults] = useState<any[]>([]);
-	const [_isSearchingOSM, setIsSearchingOSM] = useState(false);
+	const [_isSearchingOSM, _setIsSearchingOSM] = useState(false);
 	const [coordinates, setCoordinates] = useState<{ lat: string, lng: string } | null>(null);
-	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	// const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 	// 👇 The Strict Coordinate States 👇
 	const [manualCoords, setManualCoords] = useState("");
@@ -67,7 +68,14 @@ export function ReportForm() {
 			setLocationQuery("");
 			setCoordinates(null);
 			setOsmResults([]);
+			setTotalWasteAmount("");
+			setCoordinates(null);
+			setManualCoords("");
+			setApproximateAddress("");
+			setScale("small");
 			formRef.current?.reset();
+		} else if (state?.error) {
+			toast.error(state.error);
 		}
 	}, [state]);
 
@@ -105,6 +113,8 @@ export function ReportForm() {
 				setWasteType(result.data.wasteType);
 				setAmount(result.data.amount);
 				setAdditionalWaste(result.data.additionalWaste || "");
+				setTotalWasteAmount(result.data.totalWasteAmount);
+				setScale(result.data.scale);
 			} else {
 				alert(`AI Error: ${result.error}`);
 			}
@@ -139,34 +149,34 @@ export function ReportForm() {
 
 
 	// 👇 NEW: The Debounced OSM Search Function 👇
-	const handleLocationType = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const text = e.target.value;
-		setLocationQuery(text);
-		setCoordinates(null); // Reset coordinates if they start typing again
-
-		// Clear the previous timer (The Bartender waits...)
-		if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-
-		if (text.length < 3) {
-			setOsmResults([]);
-			return;
-		}
-
-		// Set a new timer for 500ms
-		searchTimeoutRef.current = setTimeout(async () => {
-			setIsSearchingOSM(true);
-			try {
-				// Fetch from the free OpenStreetMap Nominatim API
-				const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&countrycodes=eg&limit=5`);
-				const data = await res.json();
-				setOsmResults(data);
-			} catch (error) {
-				console.error("OSM Error:", error);
-			} finally {
-				setIsSearchingOSM(false);
-			}
-		}, 500);
-	};
+	// const handleLocationType = (e: React.ChangeEvent<HTMLInputElement>) => {
+	// 	const text = e.target.value;
+	// 	setLocationQuery(text);
+	// 	setCoordinates(null); // Reset coordinates if they start typing again
+	//
+	// 	// Clear the previous timer (The Bartender waits...)
+	// 	if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+	//
+	// 	if (text.length < 3) {
+	// 		setOsmResults([]);
+	// 		return;
+	// 	}
+	//
+	// 	// Set a new timer for 500ms
+	// 	searchTimeoutRef.current = setTimeout(async () => {
+	// 		setIsSearchingOSM(true);
+	// 		try {
+	// 			// Fetch from the free OpenStreetMap Nominatim API
+	// 			const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&countrycodes=eg&limit=5`);
+	// 			const data = await res.json();
+	// 			setOsmResults(data);
+	// 		} catch (error) {
+	// 			console.error("OSM Error:", error);
+	// 		} finally {
+	// 			setIsSearchingOSM(false);
+	// 		}
+	// 	}, 500);
+	// };
 
 	const fetchAddressFromCoords = async (lat: string, lng: string) => {
 		setIsFetchingAddress(true);
@@ -188,11 +198,11 @@ export function ReportForm() {
 	};
 
 	// When the user clicks a result from the dropdown
-	const selectOSMResult = (result: any) => {
-		setLocationQuery(result.display_name); // Put the full address in the input
-		setCoordinates({ lat: result.lat, lng: result.lon }); // Save exact coords
-		setOsmResults([]); // Hide the dropdown
-	};
+	// const selectOSMResult = (result: any) => {
+	// 	setLocationQuery(result.display_name); // Put the full address in the input
+	// 	setCoordinates({ lat: result.lat, lng: result.lon }); // Save exact coords
+	// 	setOsmResults([]); // Hide the dropdown
+	// };
 
 	const handleGetLocation = () => {
 		setIsLocating(true);
@@ -208,7 +218,7 @@ export function ReportForm() {
 
 					setIsLocating(false);
 				},
-				(error) => {
+				(_error) => {
 					alert("Could not get location. Please ensure location services are enabled.");
 					setIsLocating(false);
 				},
@@ -255,7 +265,8 @@ export function ReportForm() {
 					{/* 	{state?.error && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">⚠️ {state.error}</motion.div>)} */}
 					{/* </AnimatePresence> */}
 
-					<input type="hidden" name="scale" value={scale} />
+					{/* <input type="hidden" name="scale" value={scale} /> */}
+
 
 					{/* 1. Image Upload */}
 					<motion.div variants={itemVariants} className="space-y-2">
@@ -275,7 +286,7 @@ export function ReportForm() {
 								<Label htmlFor="image-upload" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ${isDragging ? "border-emerald-500 bg-emerald-100/80 scale-[1.02]" : "border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300"}`}>
 									<div className={`p-3 rounded-full mb-3 transition-colors ${isDragging ? "bg-emerald-200" : "bg-emerald-100"}`}><Upload className={`w-8 h-8 ${isDragging ? "text-emerald-700" : "text-emerald-600"}`} /></div>
 									<span className="text-base font-semibold text-emerald-800">{isDragging ? "Drop image here!" : "Click or drag an image here"}</span>
-									<span className="text-xs text-emerald-500 mt-1">PNG, JPG up to 4MB</span>
+									<span className="text-xs text-emerald-500 mt-1">PNG, JPG up to 32MB</span>
 								</Label>
 								<input id="image-upload" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 							</>
@@ -318,6 +329,27 @@ export function ReportForm() {
 						<Input id="additionalWaste" name="additionalWaste" value={additionalWaste} onChange={(e) => setAdditionalWaste(e.target.value)} placeholder="e.g., 3kg organic (Or type 'None')" required />
 					</motion.div>
 
+					{/* 4. Total Waste Amount (Mandatory) */}
+					<motion.div variants={itemVariants} className="space-y-2">
+						<Label htmlFor="totalWasteAmount" className="text-gray-900 font-semibold">Total Waste Amount (Mandatory)</Label>
+						<Input id="totalWasteAmount" name="totalWasteAmount" value={totalWasteAmount} onChange={(e) => setTotalWasteAmount(e.target.value)} placeholder="e.g., 30kg" required />
+					</motion.div>
+
+					{/* test Scale */}
+					<motion.div variants={itemVariants} className="space-y-2">
+						<div className="space-y-2">
+							<Label htmlFor="scale">Scale</Label>
+							<Select name="scale" value={scale} onValueChange={setScale} required>
+								<SelectTrigger className="bg-white"><SelectValue placeholder="Select Scale" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="small">Small</SelectItem>
+									<SelectItem value="large">Large</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</motion.div>
+
+
 					<motion.div variants={itemVariants} className="space-y-4 p-4 border border-emerald-100 bg-emerald-50/20 rounded-xl">
 						<div className="flex justify-between items-center">
 							<Label className="text-emerald-800 font-semibold">5. Exact Location (Required)</Label>
@@ -325,7 +357,7 @@ export function ReportForm() {
 
 						{/* Input Area: Manual Coords OR GPS Button */}
 						<div className="flex flex-col md:flex-row gap-3 items-end">
-							<div className="relative flex-grow w-full">
+							<div className="relative grow w-full">
 								<Label htmlFor="manualCoords" className="text-xs font-semibold text-gray-600 mb-1 block">Paste Coordinates (Lat, Lng)</Label>
 								<MapPin className="absolute left-3 top-8 h-4 w-4 text-emerald-500 z-10" />
 								<Input

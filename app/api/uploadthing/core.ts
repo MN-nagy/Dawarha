@@ -6,7 +6,7 @@ const f = createUploadthing();
 // FileRouter for your app, can contain multiple "routes"
 export const ourFileRouter = {
   // Define a route for waste images
-  wasteImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+  wasteImage: f({ image: { maxFileSize: "32MB", maxFileCount: 1 } })
     // Set permissions and file types for this route
     .middleware(async () => {
       // This code runs on your server before upload
@@ -27,10 +27,9 @@ export const ourFileRouter = {
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
 
-  // resend
+  // company
   companyDocument: f({
-    pdf: { maxFileSize: "4MB" },
-    image: { maxFileSize: "4MB" },
+    pdf: { maxFileSize: "256MB" },
   }).onUploadComplete(async ({ metadata, file }) => {
     console.log("Document uploaded:", file.ufsUrl);
     return { fileUrl: file.ufsUrl };
