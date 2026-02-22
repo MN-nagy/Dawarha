@@ -32,6 +32,7 @@ export const Reports = pgTable("reports", {
   description: text("description"),
   scale: text("scale"),
   additionalWaste: text("additional_waste"),
+  totalWasteAmount: text("total_waste_amount"), //TODO: add .notNull() after cleaning up the database
   latitude: text("latitude"),
   longitude: text("longitude"),
   imageUrl: text("image_url"),
@@ -93,13 +94,30 @@ export const UserProfiles = pgTable("user_profiles", {
   preferredWaste: text("preferred_waste").default("all"), // 'plastic', 'metal', etc.
   capacity: text("capacity").default("all"), // 'small_under_20', 'large_over_20', 'all'
 
+  // Feed radar
+  targetAmount: text("target_amount").default("any"), // "50-100", "110-200", "any"
+  radius: integer("radius").default(10), // search radius in km
+
   // Company Specifics
   companyType: text("company_type"), // 'for-profit', 'non-profit'
+  // Value Exchange (Monetization Model)
+  contributionModel: varchar("contribution_model", { length: 50 }).default(
+    "subscription",
+  ), // 'subscription' or 'reward_partner'
+  slaDocumentUrl: text("sla_document_url"), // URL for the signed SLA
 
   verificationStatus: varchar("verification_status", { length: 50 })
     .notNull()
     .default("unverified"), // 'unverified', 'pending', 'verified', 'rejected'
   verificationDocumentUrl: text("verification_document_url"), // URL from UploadThing
+
+  // strip
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }).unique(),
+  stripeSubscriptionId: varchar("stripe_subscription_id", {
+    length: 255,
+  }).unique(),
+  stripePriceId: varchar("stripe_price_id", { length: 255 }),
+  stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

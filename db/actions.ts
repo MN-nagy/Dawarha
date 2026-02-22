@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Resend } from "resend";
 import crypto from "crypto";
 import { VerificationTokens } from "@/db/schema"; // Ensure this is imported!
+import { stripe } from "@/lib/stripe";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -94,6 +95,24 @@ export async function logOut() {
   await signOut({ redirectTo: "/" });
 }
 
+// report
+const reportSchema = z.object({
+  wasteType: z.string().min(1, "Waste type is required."),
+  amount: z.string().min(1, "Amount is required."),
+  location: z.string().min(1, "Location is required."),
+  imageUrl: z.url("A valid image URL is required."),
+  description: z.string().optional(),
+  additionalWaste: z
+    .string()
+    .min(1, "Please specify if there is other waste, or type 'None'."),
+  scale: z.enum(["small", "large"], {
+    message: "Scale must be small or large.",
+  }),
+  totalWasteAmount: z.string().min(1, "Total amount is required."),
+  latitude: z.string().min(1, "Latitude coordinates are required."),
+  longitude: z.string().min(1, "Longitude coordinates are required."),
+});
+
 export async function createReport(prevState: any, formData: FormData) {
   try {
     const session = await auth();
@@ -107,31 +126,28 @@ export async function createReport(prevState: any, formData: FormData) {
       return { error: "User account not found!" };
     }
 
-    const wasteType = formData.get("wasteType") as string;
-    const amount = formData.get("amount") as string;
-    const location = formData.get("location") as string;
-    const imageUrl = formData.get("imageUrl") as string;
-    const description = formData.get("description") as string;
-    const additionalWaste = formData.get("additionalWaste") as string;
-    const scale = formData.get("scale") as string;
-    const latitude = formData.get("latitude") as string;
-    const longitude = formData.get("longitude") as string;
+    const rawData = {
+      wasteType: formData.get("wasteType"),
+      amount: formData.get("amount"),
+      location: formData.get("location"),
+      imageUrl: formData.get("imageUrl"),
+      description: formData.get("description"),
+      additionalWaste: formData.get("additionalWaste"),
+      totalWasteAmount: formData.get("totalWasteAmount"),
+      scale: formData.get("scale"),
+      latitude: formData.get("latitude"),
+      longitude: formData.get("longitude"),
+    };
 
-    if (!wasteType || !amount || !location || !imageUrl || !scale) {
-      return { error: "Please fill in all fields." };
+    const validatedData = reportSchema.safeParse(rawData);
+
+    if (!validatedData.success) {
+      return { error: validatedData.error.message };
     }
 
     await db.insert(Reports).values({
       userId: dbUser.id,
-      wasteType,
-      amount,
-      location,
-      imageUrl,
-      description,
-      additionalWaste,
-      scale,
-      latitude,
-      longitude,
+      ...validatedData.data,
       status: "pending",
     });
 
@@ -187,16 +203,23 @@ export async function analyzeWasteImage(formData: FormData) {
           wasteType: z.enum(["plastic", "metal", "glass", "paper", "organic"]),
           amount: z
             .string()
-            .describe("Estimate the amount of ONLY the dominant material."),
-          scale: z
-            .enum(["small", "large"])
             .describe(
-              "If the total waste is easily carried by one person or fits in a car trunk (< 20kg), choose 'small'. If it requires a truck or commercial vehicle (> 20kg), choose 'large'.",
+              "Estimate the weight of ONLY the dominant material. Return a simple string like '500kg' or '15kg'.",
             ),
           additionalWaste: z
             .string()
             .describe(
-              "Mandatory. List OTHER visible waste types. If absolutely no other waste is present, explicitly repeat the dominant waste type and amount (e.g., 'Only 20kg plastic present').",
+              "List OTHER visible waste types. If none, repeat the dominant waste type.",
+            ),
+          totalWasteAmount: z
+            .string()
+            .describe(
+              "MANDATORY: Add all the individual waste weights together to provide a final total weight string (e.g., '900kg'), you can use the appropriate nameing like '1000kg will be 1ton, etc'",
+            ),
+          scale: z
+            .enum(["small", "large"])
+            .describe(
+              "STRICT RULE: Read the numeric value from totalWasteAmount. If the total weight is 20kg or more, return 'large'. If it is less than 20kg, return 'small'. Do NOT guess. Do NOT use visual size. Base this ONLY on totalWasteAmount.",
             ),
         }),
       }),
@@ -206,11 +229,12 @@ export async function analyzeWasteImage(formData: FormData) {
           content: [
             {
               type: "text",
-              text: `Analyze this image of waste. Hint: "${userDescription}". 
-                 1. Determine the single DOMINANT material and categorize it strictly.
-                 2. Estimate the amount of that dominant material.
-                 3. Identify any OTHER secondary waste types in the image and estimate their amounts.
-                4. categorize as either small or large.`,
+              text: `Analyze this image of waste. User provided context: "${userDescription}". 
+                 Step 1: Determine the single DOMINANT material.
+                 Step 2: Estimate the weight of that dominant material.
+                 Step 3: Identify any OTHER secondary waste types and estimate their weights.
+                 Step 4: Calculate the total combined weight of all materials.
+                 Step 5: CRITICAL LOGIC CHECK -> If the total combined weight from Step 4 is 20kg or more, the scale is 'large'. If it is under 20kg, the scale is 'small'.`,
             },
             { type: "image", image: buffer },
           ],
@@ -281,6 +305,9 @@ export async function updateProfileSettings(
     preferredWaste: string;
     capacity: string;
     companyType: string | null;
+    contributionModel: string;
+    targetAmount: string;
+    radius: number;
   },
 ) {
   try {
@@ -433,7 +460,7 @@ export async function requestPasswordReset(email: string) {
 
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}&type=password`;
 
-// Replace the old resend.emails.send block with this:
+    // Replace the old resend.emails.send block with this:
     await resend.emails.send({
       from: "Dawarha Support <onboarding@resend.dev>",
       to: email,
@@ -482,5 +509,210 @@ export async function submitCompanyVerification(
     return { success: "Documents submitted! Status is now Pending." };
   } catch (error) {
     return { error: "Failed to submit verification documents." };
+  }
+}
+
+// --- BILLING & SUBSCRIPTIONS ---
+
+export async function createStripeCheckoutSession(
+  userId: number,
+  email: string,
+) {
+  try {
+    const priceId = process.env.STRIPE_PRO_PRICE_ID;
+
+    if (!priceId) {
+      return { error: "Stripe Price ID is not configured on the server." };
+    }
+
+    // Tell Stripe to generate a secure, hosted checkout page
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?billing=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?billing=canceled`,
+      customer_email: email, // Auto-fills the checkout so they don't have to type it again
+      metadata: {
+        userId: userId.toString(), // CRITICAL: We need this later to know WHO paid when Stripe pings our webhook!
+      },
+    });
+
+    if (!session.url) {
+      return { error: "Failed to generate checkout URL." };
+    }
+
+    return { url: session.url };
+  } catch (error) {
+    console.error("Stripe Checkout Error:", error);
+    return { error: "Internal server error connecting to Stripe." };
+  }
+}
+
+export async function createStripePortalSession(customerId: string) {
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    });
+
+    if (!session.url) {
+      return { error: "Failed to generate portal URL." };
+    }
+
+    return { url: session.url };
+  } catch (error) {
+    console.error("Stripe Portal Error:", error);
+    return { error: "Internal server error connecting to Stripe Portal." };
+  }
+}
+
+// --- FEED RADAR ENGINE (PERSONALIZED) ---
+
+// Helper 1: The Haversine Formula (Calculates distance over the Earth's curve)
+function getDistanceFromLatLonInKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+) {
+  const R = 6371; // Radius of the earth in kilometers
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function deg2rad(deg: number) {
+  return deg * (Math.PI / 180);
+}
+
+// Helper 2: AI Weight Parser (Turns "1.5 tons" into 1500)
+function parseWeightToKg(weightStr: string | null): number {
+  if (!weightStr) return 0;
+  const lowerStr = weightStr.toLowerCase();
+
+  // Extract only the numbers and decimals using a Regular Expression
+  let num = parseFloat(lowerStr.replace(/[^0-9.]/g, ""));
+  if (isNaN(num)) return 0;
+
+  // If the AI used the word "ton", multiply by 1000 to keep it in KG
+  if (lowerStr.includes("ton")) num *= 1000;
+
+  return num;
+}
+
+// Main Function: Get the highly personalized Feed
+export async function getPersonalizedFeed() {
+  const session = await auth();
+  if (!session?.user?.email) return { error: "Unauthorized" };
+
+  const dbUser = await getUserByEmail(session.user.email);
+  if (!dbUser) return { error: "User not found" };
+
+  try {
+    // 1. Get the user's complete profile & operating locations
+    const profileData = await getCompleteUserProfile(dbUser.id);
+    const profile = profileData.profile;
+    const locations = profileData.locations;
+
+    if (!profile) return { error: "Profile not set up." };
+    if (!locations || locations.length === 0)
+      return {
+        error:
+          "No locations set. Please add a base location in Settings to use the Radar.",
+      };
+
+    // 2. Fetch ALL pending reports from the database
+    const allReports = await db
+      .select()
+      .from(Reports)
+      .where(eq(Reports.status, "pending"));
+
+    // 3. The Radar Filter Pipeline
+    const radarFeed = allReports
+      .map((report) => {
+        // A. Calculate Distance
+        const reportLat = parseFloat(report.latitude || "0");
+        const reportLng = parseFloat(report.longitude || "0");
+
+        // If a company has 3 branches, find which branch is closest to the waste
+        let minDistance = Infinity;
+        for (const loc of locations) {
+          const locLat = parseFloat(loc.latitude);
+          const locLng = parseFloat(loc.longitude);
+          const dist = getDistanceFromLatLonInKm(
+            locLat,
+            locLng,
+            reportLat,
+            reportLng,
+          );
+          if (dist < minDistance) minDistance = dist;
+        }
+
+        // Inject the distance into the report object so the UI can display it!
+        return { ...report, distance: minDistance };
+      })
+      .filter((report) => {
+        // B. Filter by Radius
+        if (report.distance > (profile.radius || 10)) return false;
+
+        // C. Filter by Waste Type
+        const preferredTypes = profile.preferredWaste
+          ? profile.preferredWaste.split(",")
+          : ["all"];
+        if (!preferredTypes.includes("all")) {
+          if (!preferredTypes.includes(report.wasteType)) return false;
+        }
+
+        // D. Filter by Scale / Capacity Restrictions
+        if (profile.role === "individual_collector" && report.scale !== "small")
+          return false;
+        if (profile.role === "company_collector" && report.scale !== "large")
+          return false;
+
+        // E. Filter by Target Amount (Company Only)
+        if (
+          profile.role === "company_collector" &&
+          profile.targetAmount &&
+          profile.targetAmount !== "any"
+        ) {
+          const weightKg = parseWeightToKg(report.totalWasteAmount);
+          if (
+            profile.targetAmount === "50-100" &&
+            (weightKg < 50 || weightKg > 100)
+          )
+            return false;
+          if (
+            profile.targetAmount === "110-200" &&
+            (weightKg < 110 || weightKg > 200)
+          )
+            return false;
+          if (profile.targetAmount === "200+" && weightKg < 200) return false;
+        }
+
+        return true; // If it survives all checks, keep it!
+      });
+
+    // 4. Sort the feed so the closest waste is at the top of the list
+    radarFeed.sort((a, b) => a.distance - b.distance);
+
+    return { success: true, feed: radarFeed, userRole: profile.role };
+  } catch (error) {
+    console.error("Feed generation error:", error);
+    return { error: "Failed to generate radar feed." };
   }
 }
