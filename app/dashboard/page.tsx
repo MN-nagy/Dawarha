@@ -1,112 +1,70 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getRecentReports } from "@/db/actions";
+import { db } from "@/db/index";
+import { eq, desc, and } from "drizzle-orm";
+import { Users, Reports, UserProfiles, Rewards } from "@/db/schema";
 import Header from "@/components/Header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Leaf, Target } from "lucide-react";
+import { DashboardClient } from "@/components/dashboard-client";
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
 	const session = await auth();
-	if (!session?.user) {
-		redirect("/login");
+	if (!session?.user?.email) redirect("/login");
+
+	// 1. Identify User and Role
+	const [dbUser] = await db.select().from(Users).where(eq(Users.email, session.user.email));
+	if (!dbUser) redirect("/login");
+
+	const [profile] = await db.select().from(UserProfiles).where(eq(UserProfiles.userId, dbUser.id));
+	const userRole = profile?.role || dbUser.role || "member";
+
+	// 2. Fetch Base Data (EVERYONE gets to see their own reports and rewards)
+	const myReports = await db.select().from(Reports)
+		.where(eq(Reports.userId, dbUser.id))
+		.orderBy(desc(Reports.createdAt));
+
+	const myRewards = await db.select().from(Rewards)
+		.where(eq(Rewards.userId, dbUser.id))
+		.orderBy(desc(Rewards.createdAt));
+
+	// 3. Fetch Collector Specific Data
+	let activeRoutes = [];
+	let completedPickups = [];
+
+	if (userRole !== "member") {
+		activeRoutes = await db.select().from(Reports)
+			.where(and(eq(Reports.collectorId, dbUser.id), eq(Reports.status, "in_progress")))
+			.orderBy(desc(Reports.createdAt));
+
+		completedPickups = await db.select().from(Reports)
+			.where(and(eq(Reports.collectorId, dbUser.id), eq(Reports.status, "collected")))
+			.orderBy(desc(Reports.createdAt));
 	}
 
-	const reports = await getRecentReports();
-	const user = session.user;
-
 	return (
-		<div className="min-h-screen bg-gray-50">
-			<Header user={user} />
+		<div className="min-h-screen bg-gray-50 flex flex-col">
+			<Header user={session.user} />
+			<main className="flex-grow max-w-7xl mx-auto w-full p-4 md:p-8 animate-in fade-in duration-500">
 
-			<main className="max-w-6xl mx-auto p-6 md:p-10 space-y-8">
-
-				{/* Welcome Section */}
-				<div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-					<h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-					<p className="text-gray-500">Welcome back, {user.name || "Eco-Warrior"}!</p>
+				<div className="mb-8">
+					<h1 className="text-3xl font-black text-gray-900 tracking-tight">
+						{userRole === "member" ? "My Impact" : "Command Center"}
+					</h1>
+					<p className="text-gray-500 mt-1">
+						Welcome back, <span className="font-semibold text-emerald-700">{dbUser.name}</span>
+					</p>
 				</div>
 
-				{/* Analytics Cards Row */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-					<Card className="border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-						<CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-							<CardTitle className="text-sm font-medium text-gray-600">Total Points</CardTitle>
-							<Leaf className="w-4 h-4 text-emerald-600" />
-						</CardHeader>
-						<CardContent>
-							<div className="text-3xl font-bold text-gray-900">0</div>
-							<p className="text-xs text-gray-500 mt-1">Earn points by reporting waste!</p>
-						</CardContent>
-					</Card>
+				<DashboardClient
+					user={dbUser}
+					role={userRole}
+					myReports={myReports}
+					activeRoutes={activeRoutes}
+					completedPickups={completedPickups}
+					myRewards={myRewards}
+				/>
 
-					<Card className="border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-						<CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-							<CardTitle className="text-sm font-medium text-gray-600">Total Reports</CardTitle>
-							<Activity className="w-4 h-4 text-emerald-600" />
-						</CardHeader>
-						<CardContent>
-							<div className="text-3xl font-bold text-gray-900">{reports.length}</div>
-							<p className="text-xs text-gray-500 mt-1">Lifetime contributions</p>
-						</CardContent>
-					</Card>
-
-					<Card className="border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-						<CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-							<CardTitle className="text-sm font-medium text-gray-600">Impact Level</CardTitle>
-							<Target className="w-4 h-4 text-emerald-600" />
-						</CardHeader>
-						<CardContent>
-							<div className="text-3xl font-bold text-gray-900">Seedling</div>
-							<p className="text-xs text-gray-500 mt-1">Complete 5 reports to level up</p>
-						</CardContent>
-					</Card>
-				</div>
-
-				{/* Full-Width Activity Table */}
-				<div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-1000">
-					<div className="p-6 border-b border-gray-100">
-						<h2 className="font-semibold text-lg text-gray-800">Your Recent Activity</h2>
-					</div>
-
-					<Table>
-						<TableHeader>
-							<TableRow className="bg-gray-50 hover:bg-gray-50">
-								<TableHead>Location</TableHead>
-								<TableHead>Dominant Type</TableHead>
-								<TableHead>Amount</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead className="text-right">Date</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{reports.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={5} className="text-center py-12 text-gray-500">
-										No reports yet. Click "Report Waste" to get started! 🌿
-									</TableCell>
-								</TableRow>
-							) : (
-								reports.map((report) => (
-									<TableRow key={report.id} className="transition-colors hover:bg-gray-50/50">
-										<TableCell className="font-medium text-gray-900">{report.location}</TableCell>
-										<TableCell className="capitalize">{report.wasteType}</TableCell>
-										<TableCell>{report.amount}</TableCell>
-										<TableCell>
-											<Badge variant={report.status === "pending" ? "secondary" : "default"}>
-												{report.status}
-											</Badge>
-										</TableCell>
-										<TableCell className="text-right text-gray-500 text-sm">
-											{new Date(report.createdAt).toLocaleDateString()}
-										</TableCell>
-									</TableRow>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</div>
 			</main>
 		</div>
 	);

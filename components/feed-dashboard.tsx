@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Weight, Truck, User, Navigation, Radar, Search, Filter, ArrowUpDown, MapPin } from "lucide-react";
 import dynamic from "next/dynamic";
+import { claimWasteReport } from "@/db/actions";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const FeedMap = dynamic(() => import("./feed-map"), {
 	ssr: false,
@@ -32,6 +35,11 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 	// Search Autocomplete States
 	const [showSuggestions, setShowSuggestions] = useState(false);
 	const searchContainerRef = useRef<HTMLDivElement>(null);
+
+	// Claim States
+	const [claimingId, setClaimingId] = useState<number | null>(null);
+	const [claimedReportIds, setClaimedReportsIds] = useState<number[]>([]);
+
 
 	// Close suggestions if clicking outside the search box
 	useEffect(() => {
@@ -88,6 +96,7 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 
 	const displayReports = useMemo(() => {
 		let filtered = initialReports.filter(report => {
+			if (claimedReportIds.includes(report.id)) return false;
 			const searchLower = searchQuery.toLowerCase();
 			const matchesSearch = report.location?.toLowerCase().includes(searchLower) ||
 				report.additionalWaste?.toLowerCase().includes(searchLower);
@@ -104,6 +113,23 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 
 		return filtered;
 	}, [initialReports, searchQuery, materialFilter, sortBy]);
+
+
+	const handleClaim = async (reportId: number) => {
+		setClaimingId(reportId);
+		const result = await claimWasteReport(reportId);
+
+		if (result.success) {
+			toast.success("Route Secured!", {
+				description: "This pickup has been added to your Active Routes."
+			});
+			setClaimedReportsIds(prev => [...prev, reportId]);
+		} else {
+			toast.error("Claim Failed", { description: result.error });
+		}
+		setClaimingId(null);
+	};
+
 
 	return (
 		<div className="flex w-full h-full overflow-hidden bg-white">
@@ -235,7 +261,17 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 												<Weight className="w-3.5 h-3.5" />
 												{report.totalWasteAmount}
 											</div>
-											<Button size="sm" className="h-7 text-xs bg-gray-900 hover:bg-emerald-600 transition-colors text-white">Collect</Button>
+											<Button
+												size="sm"
+												disabled={claimingId === report.id}
+												onClick={(e) => {
+													e.stopPropagation(); // Prevents map from zooming when you click the button
+													handleClaim(report.id);
+												}}
+												className="h-7 text-xs bg-gray-900 hover:bg-emerald-600 transition-colors text-white min-w-[80px]"
+											>
+												{claimingId === report.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : "Route"}
+											</Button>
 										</div>
 									</div>
 								</div>

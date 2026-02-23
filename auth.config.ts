@@ -10,8 +10,9 @@ export const authConfig = {
 
       const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
       const isOnReport = nextUrl.pathname.startsWith("/report");
+      const isOnFeed = nextUrl.pathname.startsWith("/feed");
 
-      if (isOnDashboard || isOnReport) {
+      if (isOnDashboard || isOnReport || isOnFeed) {
         if (isLoggedIn) return true;
         return false;
       }
