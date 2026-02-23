@@ -2,7 +2,16 @@
 
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/index";
-import { Users, Reports, UserProfiles, CompanyLocations } from "@/db/schema";
+import {
+  Users,
+  Reports,
+  UserProfiles,
+  CompanyLocations,
+  CollectedWastes,
+  Rewards,
+  Notifications,
+  VerificationTokens,
+} from "@/db/schema";
 import { signIn, signOut, auth } from "@/auth";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
@@ -13,7 +22,6 @@ import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { Resend } from "resend";
 import crypto from "crypto";
-import { VerificationTokens } from "@/db/schema"; // Ensure this is imported!
 import { stripe } from "@/lib/stripe";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -715,4 +723,138 @@ export async function getPersonalizedFeed() {
     console.error("Feed generation error:", error);
     return { error: "Failed to generate radar feed." };
   }
+}
+
+// --- COLLECT & REWARD POINTS ENGINE ---
+// ==========================================
+
+// --- CLAIM ROUTE (STEP 1: IN PROGRESS) ---
+export async function claimWasteReport(reportId: number) {
+  const session = await auth();
+  if (!session?.user?.email) return { error: "Unauthorized. Please log in." };
+
+  try {
+    const dbUser = await getUserByEmail(session.user.email);
+    if (!dbUser) return { error: "User not found." };
+
+    const [report] = await db
+      .select()
+      .from(Reports)
+      .where(eq(Reports.id, reportId));
+
+    if (!report) return { error: "Report not found." };
+    if (report.status !== "pending")
+      return { error: "This waste is no longer available!" };
+
+    // 1. Lock the report to this collector and mark as 'in_progress'
+    await db
+      .update(Reports)
+      .set({ status: "in_progress", collectorId: dbUser.id })
+      .where(eq(Reports.id, reportId));
+
+    // 2. Notify the Member so they know someone is coming!
+    await db.insert(Notifications).values({
+      userId: report.userId,
+      message: `🚚 Good news! A collector has reserved your ${report.wasteType} and is planning their route.`,
+      type: "route_planned",
+      isRead: false,
+    });
+
+    // Revalidate the explore and feed pages so the UI updates globally
+    revalidatePath("/explore");
+    revalidatePath("/feed");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Claim Error:", error);
+    return { error: "Failed to claim waste. Please try again." };
+  }
+}
+
+// --- COMPLETE ROUTE (STEP 2: COLLECTED & REWARDED) ---
+export async function completeWastePickup(reportId: number) {
+    const session = await auth();
+    if (!session?.user?.email) return { error: "Unauthorized" };
+
+    try {
+        const dbUser = await getUserByEmail(session.user.email);
+        if (!dbUser) return { error: "User not found." };
+
+        const [report] = await db.select().from(Reports).where(eq(Reports.id, reportId));
+        if (!report) return { error: "Report not found." };
+        if (report.status !== "in_progress") return { error: "This job is not in progress!" };
+        if (report.collectorId !== dbUser.id) return { error: "You are not authorized to complete this job." };
+
+        // --- 1. CALCULATE REPORTER POINTS ---
+        // Base 10 points, +5 bonus if they provided a description
+        let reporterPoints = 10;
+        if (report.description && report.description.trim().length > 0) {
+            reporterPoints += 5;
+        }
+
+        // --- 2. CALCULATE COLLECTOR POINTS ---
+        // Solo collectors get 15 points. Companies get 0. 
+        // (We check dbUser.role since it syncs with UserProfiles)
+        let collectorPoints = 0;
+        if (dbUser.role === "individual_collector") {
+            collectorPoints = 15;
+        }
+
+        // --- EXECUTE THE UPDATES ---
+
+        // A. Mark the report as Collected
+        await db.update(Reports).set({ status: "collected" }).where(eq(Reports.id, reportId));
+
+        // B. Reward the Member who reported it
+        const [reporter] = await db.select().from(Users).where(eq(Users.id, report.userId));
+        if (reporter) {
+            await db.update(Users)
+                .set({ balance: (reporter.balance || 0) + reporterPoints })
+                .where(eq(Users.id, report.userId));
+
+            // Log the Reward for the Member
+            await db.insert(Rewards).values({
+                userId: report.userId,
+                points: reporterPoints,
+                description: `Reward for reporting ${report.wasteType}${reporterPoints === 15 ? ' (includes +5 description bonus)' : ''}`,
+                collectionInfo: `Collected on ${new Date().toLocaleDateString()}`
+            });
+
+            // Notify the Member
+            await db.insert(Notifications).values({
+                userId: report.userId,
+                message: `🎉 Success! Your waste was collected. You earned ${reporterPoints} points!`,
+                type: "collection_complete",
+                isRead: false
+            });
+        }
+
+        // C. Reward the Solo Collector (If applicable)
+        if (collectorPoints > 0) {
+            await db.update(Users)
+                .set({ balance: (dbUser.balance || 0) + collectorPoints })
+                .where(eq(Users.id, dbUser.id));
+
+            await db.insert(Rewards).values({
+                userId: dbUser.id,
+                points: collectorPoints,
+                description: `Reward for collecting ${report.wasteType} route`,
+                collectionInfo: `Completed on ${new Date().toLocaleDateString()}`
+            });
+        }
+
+        // D. Log the Physical Collection Event for the Platform
+        await db.insert(CollectedWastes).values({
+            reportId: report.id,
+            collectorId: dbUser.id,
+            status: "collected"
+        });
+
+        revalidatePath("/dashboard");
+        return { success: true, pointsAwarded: reporterPoints };
+
+    } catch (error: any) {
+        console.error("Complete Job Error:", error);
+        return { error: "Failed to complete job." };
+    }
 }

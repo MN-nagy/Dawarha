@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { MapPin, Calendar, Weight, Package, Truck, User, Search, Filter, ArrowUpDown, Lock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Loader2 } from "lucide-react";
+import { claimWasteReport } from "@/db/actions";
+import { toast } from "sonner";
 
 // Helper to extract numbers for sorting by weight
 const parseWeight = (str: string) => {
@@ -23,6 +26,10 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 	const [filterType, setFilterType] = useState<string>("all");
 	const [filterScale, setFilterScale] = useState<string>("all");
 	const [sortBy, setSortBy] = useState("newest");
+	// Claim States
+	const [claimingId, setClaimingId] = useState<number | null>(null);
+	const [claimedReportIds, setClaimedReportsIds] = useState<number[]>([]);
+
 
 	// Autocomplete States
 	const [showSuggestions, setShowSuggestions] = useState(false);
@@ -73,6 +80,8 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 	// Apply Filters & Sorting
 	const displayReports = useMemo(() => {
 		let filtered = initialReports.filter(report => {
+			if (claimedReportIds.includes(report.id)) return false;
+
 			const searchLower = searchQuery.toLowerCase();
 			const matchesSearch = report.location?.toLowerCase().includes(searchLower) ||
 				report.additionalWaste?.toLowerCase().includes(searchLower) ||
@@ -99,6 +108,24 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 		if (userRole === "company_collector" && scale === "small") return { allowed: false, reason: "Too small for commercial fleet (<20kg)." };
 		return { allowed: true, reason: "" };
 	};
+
+	// Function to handle the claim button click
+	const handleClaim = async (reportId: number) => {
+		setClaimingId(reportId);
+		const result = await claimWasteReport(reportId);
+
+		if (result.success) {
+			toast.success("Job Claimed Successfully!", {
+				description: "Route Secured! Go to your dashboard to complete the pickup.",
+			});
+			// Hide the card instantly without reloading the page
+			setClaimedReportsIds(prev => [...prev, reportId]);
+		} else {
+			toast.error("Claim Failed", { description: result.error });
+		}
+		setClaimingId(null);
+	};
+
 
 	return (
 		<div className="space-y-6">
@@ -256,11 +283,16 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 												<div>
 													<Button
 														size="sm"
-														disabled={!claimStatus.allowed}
+														disabled={!claimStatus.allowed || claimingId === report.id}
+														onClick={() => handleClaim(report.id)}
 														className={`transition-all ${claimStatus.allowed ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
 													>
-														{!claimStatus.allowed && <Lock className="w-3 h-3 mr-1.5" />}
-														Claim Job
+														{claimingId === report.id ? (
+															<Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+														) : !claimStatus.allowed ? (
+															<Lock className="w-3 h-3 mr-1.5" />
+														) : null}
+														{claimingId === report.id ? "Securing..." : "Claim Job"}
 													</Button>
 												</div>
 											</TooltipTrigger>
