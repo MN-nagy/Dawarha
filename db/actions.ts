@@ -773,88 +773,166 @@ export async function claimWasteReport(reportId: number) {
 
 // --- COMPLETE ROUTE (STEP 2: COLLECTED & REWARDED) ---
 export async function completeWastePickup(reportId: number) {
-    const session = await auth();
-    if (!session?.user?.email) return { error: "Unauthorized" };
+  const session = await auth();
+  if (!session?.user?.email) return { error: "Unauthorized" };
 
-    try {
-        const dbUser = await getUserByEmail(session.user.email);
-        if (!dbUser) return { error: "User not found." };
+  try {
+    const dbUser = await getUserByEmail(session.user.email);
+    if (!dbUser) return { error: "User not found." };
 
-        const [report] = await db.select().from(Reports).where(eq(Reports.id, reportId));
-        if (!report) return { error: "Report not found." };
-        if (report.status !== "in_progress") return { error: "This job is not in progress!" };
-        if (report.collectorId !== dbUser.id) return { error: "You are not authorized to complete this job." };
+    const [report] = await db
+      .select()
+      .from(Reports)
+      .where(eq(Reports.id, reportId));
+    if (!report) return { error: "Report not found." };
+    if (report.status !== "in_progress")
+      return { error: "This job is not in progress!" };
+    if (report.collectorId !== dbUser.id)
+      return { error: "You are not authorized to complete this job." };
 
-        // --- 1. CALCULATE REPORTER POINTS ---
-        // Base 10 points, +5 bonus if they provided a description
-        let reporterPoints = 10;
-        if (report.description && report.description.trim().length > 0) {
-            reporterPoints += 5;
-        }
-
-        // --- 2. CALCULATE COLLECTOR POINTS ---
-        // Solo collectors get 15 points. Companies get 0. 
-        // (We check dbUser.role since it syncs with UserProfiles)
-        let collectorPoints = 0;
-        if (dbUser.role === "individual_collector") {
-            collectorPoints = 15;
-        }
-
-        // --- EXECUTE THE UPDATES ---
-
-        // A. Mark the report as Collected
-        await db.update(Reports).set({ status: "collected" }).where(eq(Reports.id, reportId));
-
-        // B. Reward the Member who reported it
-        const [reporter] = await db.select().from(Users).where(eq(Users.id, report.userId));
-        if (reporter) {
-            await db.update(Users)
-                .set({ balance: (reporter.balance || 0) + reporterPoints })
-                .where(eq(Users.id, report.userId));
-
-            // Log the Reward for the Member
-            await db.insert(Rewards).values({
-                userId: report.userId,
-                points: reporterPoints,
-                description: `Reward for reporting ${report.wasteType}${reporterPoints === 15 ? ' (includes +5 description bonus)' : ''}`,
-                collectionInfo: `Collected on ${new Date().toLocaleDateString()}`
-            });
-
-            // Notify the Member
-            await db.insert(Notifications).values({
-                userId: report.userId,
-                message: `🎉 Success! Your waste was collected. You earned ${reporterPoints} points!`,
-                type: "collection_complete",
-                isRead: false
-            });
-        }
-
-        // C. Reward the Solo Collector (If applicable)
-        if (collectorPoints > 0) {
-            await db.update(Users)
-                .set({ balance: (dbUser.balance || 0) + collectorPoints })
-                .where(eq(Users.id, dbUser.id));
-
-            await db.insert(Rewards).values({
-                userId: dbUser.id,
-                points: collectorPoints,
-                description: `Reward for collecting ${report.wasteType} route`,
-                collectionInfo: `Completed on ${new Date().toLocaleDateString()}`
-            });
-        }
-
-        // D. Log the Physical Collection Event for the Platform
-        await db.insert(CollectedWastes).values({
-            reportId: report.id,
-            collectorId: dbUser.id,
-            status: "collected"
-        });
-
-        revalidatePath("/dashboard");
-        return { success: true, pointsAwarded: reporterPoints };
-
-    } catch (error: any) {
-        console.error("Complete Job Error:", error);
-        return { error: "Failed to complete job." };
+    // --- 1. CALCULATE REPORTER POINTS ---
+    // Base 10 points, +5 bonus if they provided a description
+    let reporterPoints = 10;
+    if (report.description && report.description.trim().length > 0) {
+      reporterPoints += 5;
     }
+
+    // --- 2. CALCULATE COLLECTOR POINTS ---
+    // Solo collectors get 15 points. Companies get 0.
+    // (We check dbUser.role since it syncs with UserProfiles)
+    let collectorPoints = 0;
+    if (dbUser.role === "individual_collector") {
+      collectorPoints = 15;
+    }
+
+    // --- EXECUTE THE UPDATES ---
+
+    // A. Mark the report as Collected
+    await db
+      .update(Reports)
+      .set({ status: "collected" })
+      .where(eq(Reports.id, reportId));
+
+    // B. Reward the Member who reported it
+    const [reporter] = await db
+      .select()
+      .from(Users)
+      .where(eq(Users.id, report.userId));
+    if (reporter) {
+      const oldBalance = reporter.balance || 0;
+      const newBalance = oldBalance + reporterPoints;
+
+      await db
+        .update(Users)
+        .set({ balance: newBalance })
+        .where(eq(Users.id, report.userId));
+
+      // ... (keep the Rewards insert and standard Notification insert here) ...
+      await db.insert(Rewards).values({
+        userId: report.userId,
+        points: reporterPoints,
+        description: `Reward for reporting ${report.wasteType}${reporterPoints === 15 ? " (includes +5 description bonus)" : ""}`,
+        collectionInfo: `Collected on ${new Date().toLocaleDateString()}`,
+      });
+
+      await db.insert(Notifications).values({
+        userId: report.userId,
+        message: `🎉 Success! Your waste was collected. You earned ${reporterPoints} points!`,
+        type: "collection_complete",
+        isRead: false,
+      });
+
+      // --- PROMOTION DETECTOR (MEMBER) ---
+      let newRank = null;
+      if (oldBalance < 50 && newBalance >= 50) newRank = "Planter";
+      else if (oldBalance < 150 && newBalance >= 150)
+        newRank = "Forest Guardian";
+      else if (oldBalance < 500 && newBalance >= 500)
+        newRank = "Earth Champion";
+
+      if (newRank) {
+        await db.insert(Notifications).values({
+          userId: report.userId,
+          message: `🏆 Congratulations! You have been promoted to the ${newRank} rank!`,
+          type: "rank_up",
+          isRead: false,
+        });
+      }
+    }
+
+    // C. Reward the Solo Collector (If applicable)
+    if (collectorPoints > 0) {
+      await db
+        .update(Users)
+        .set({ balance: (dbUser.balance || 0) + collectorPoints })
+        .where(eq(Users.id, dbUser.id));
+
+      await db.insert(Rewards).values({
+        userId: dbUser.id,
+        points: collectorPoints,
+        description: `Reward for collecting ${report.wasteType} route`,
+        collectionInfo: `Completed on ${new Date().toLocaleDateString()}`,
+      });
+
+      // --- PROMOTION DETECTOR (SOLO COLLECTOR) ---
+      // Fetch total completed jobs to check for rank up
+      const collectorJobs = await db
+        .select()
+        .from(CollectedWastes)
+        .where(eq(CollectedWastes.collectorId, dbUser.id));
+      const oldJobCount = collectorJobs.length;
+      const newJobCount = oldJobCount + 1; // including the one we are about to insert below
+
+      let newRank = null;
+      if (oldJobCount < 10 && newJobCount >= 10) newRank = "Route Master";
+      else if (oldJobCount < 50 && newJobCount >= 50) newRank = "Fleet Captain";
+
+      if (newRank) {
+        await db.insert(Notifications).values({
+          userId: dbUser.id,
+          message: `🏆 Congratulations! You have been promoted to the ${newRank} rank!`,
+          type: "rank_up",
+          isRead: false,
+        });
+      }
+    }
+
+    // D. Log the Physical Collection Event for the Platform
+    await db.insert(CollectedWastes).values({
+      reportId: report.id,
+      collectorId: dbUser.id,
+      status: "collected",
+    });
+
+    // --- PROMOTION DETECTOR (COMPANY COLLECTOR) ---
+    if (dbUser.role === "company_collector") {
+      const companyJobs = await db
+        .select()
+        .from(CollectedWastes)
+        .where(eq(CollectedWastes.collectorId, dbUser.id));
+      const oldJobCount = companyJobs.length;
+      const newJobCount = oldJobCount + 1;
+
+      let newTier = null;
+      if (oldJobCount < 25 && newJobCount >= 25)
+        newTier = "Gold Sustainability Partner";
+      else if (oldJobCount < 100 && newJobCount >= 100)
+        newTier = "Platinum Impact Hub";
+
+      if (newTier) {
+        await db.insert(Notifications).values({
+          userId: dbUser.id,
+          message: `🏢 Certification Upgraded! You are now a ${newTier}!`,
+          type: "tier_up",
+          isRead: false,
+        });
+      }
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true, pointsAwarded: reporterPoints };
+  } catch (error: any) {
+    console.error("Complete Job Error:", error);
+    return { error: "Failed to complete job." };
+  }
 }
