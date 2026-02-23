@@ -9,6 +9,7 @@ import { Leaf, Target, Truck, ShieldCheck, MapPin, CheckCircle, Loader2, Factory
 import { completeWastePickup } from "@/db/actions";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
+import { Progress } from "@/components/ui/progress";
 
 // Beautiful color palette for the Donut Chart
 const COLORS = {
@@ -71,6 +72,33 @@ export function DashboardClient({
 		});
 		return Math.floor(totalKg * 1.5);
 	};
+
+	// --- Gamification Progress Calculators ---
+	const getMemberProgress = (points: number) => {
+		if (points < 50) return { next: "Planter", target: 50, percent: (points / 50) * 100 };
+		if (points < 150) return { next: "Forest Guardian", target: 150, percent: (points / 150) * 100 };
+		if (points < 500) return { next: "Earth Champion", target: 500, percent: (points / 500) * 100 };
+		return { next: "Max Rank Achieved", target: points, percent: 100 };
+	};
+
+	const getSoloProgress = (jobs: number) => {
+		if (jobs < 10) return { next: "Route Master", target: 10, percent: (jobs / 10) * 100 };
+		if (jobs < 50) return { next: "Fleet Captain", target: 50, percent: (jobs / 50) * 100 };
+		return { next: "Max Rank Achieved", target: jobs, percent: 100 };
+	};
+
+	const getCompanyProgress = (jobs: number) => {
+		if (jobs < 25) return { next: "Gold Partner", target: 25, percent: (jobs / 25) * 100 };
+		if (jobs < 100) return { next: "Platinum Hub", target: 100, percent: (jobs / 100) * 100 };
+		return { next: "Max Tier Achieved", target: jobs, percent: 100 };
+	};
+
+	// Calculate the current user's progress based on role
+	const progressData = isMember
+		? getMemberProgress(user.balance)
+		: isSolo
+			? getSoloProgress(completedPickups.length)
+			: getCompanyProgress(completedPickups.length);
 
 	// --- CHART DATA GENERATION ---
 	const { activityData, pointsData, pieData, co2Data } = useMemo(() => {
@@ -176,11 +204,27 @@ export function DashboardClient({
 						<ShieldCheck className={`w-5 h-5 ${isCompany ? 'text-slate-300' : 'text-emerald-600'}`} />
 					</CardHeader>
 					<CardContent>
-						<div className="mt-1">
+						<div className="mt-1 flex items-center justify-between">
 							{isMember && <Badge className={`text-sm px-3 py-1 ${getMemberRank(user.balance).color}`}>{getMemberRank(user.balance).title}</Badge>}
 							{isSolo && <Badge className={`text-sm px-3 py-1 ${getSoloRank(completedPickups.length).color}`}>{getSoloRank(completedPickups.length).title}</Badge>}
 							{isCompany && <Badge className={`text-sm px-3 py-1 ${getCompanyTier(completedPickups.length).color}`}>{getCompanyTier(completedPickups.length).title}</Badge>}
+
+							<span className={`text-xs font-bold ${isCompany ? 'text-slate-400' : 'text-emerald-700'}`}>
+								{isMember ? `${user.balance} / ${progressData.target} pts` : `${completedPickups.length} / ${progressData.target} jobs`}
+							</span>
 						</div>
+
+						{progressData.percent < 100 && (
+							<div className="mt-4">
+								<Progress
+									value={progressData.percent}
+									className={`h-2 ${isCompany ? 'bg-slate-800 [&>div]:bg-amber-400' : 'bg-emerald-200/50 [&>div]:bg-emerald-600'}`}
+								/>
+								<p className={`text-[10px] mt-1.5 font-semibold text-right ${isCompany ? 'text-slate-400' : 'text-emerald-700/80'}`}>
+									Next: {progressData.next}
+								</p>
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { logOut } from "@/db/actions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, Plus, ChevronDown, Settings, LogOut, LayoutDashboard, Compass, Radar, User } from "lucide-react";
+import { Leaf, Plus, ChevronDown, Settings, LogOut, LayoutDashboard, Compass, Radar, User, Info, Bug } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 
 export default function Header({ user }: { user: any }) {
@@ -34,9 +34,10 @@ export default function Header({ user }: { user: any }) {
 		show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300 } }
 	};
 
-	// Main Navigation Links
+	// Main Navigation Links (Added About here!)
 	const navLinks = [
 		{ name: "Home", path: "/", icon: null },
+		{ name: "About", path: "/about", icon: Info },
 		{ name: "Explore", path: "/explore", icon: Compass },
 		{ name: "Radar", path: "/feed", icon: Radar },
 		{ name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -65,6 +66,12 @@ export default function Header({ user }: { user: any }) {
 					{/* Desktop Navigation */}
 					<motion.nav variants={containerVariants} initial="hidden" animate="show" className="hidden md:flex space-x-1 items-center bg-gray-50/50 p-1 rounded-full border border-gray-100">
 						{navLinks.map((link) => {
+							// SMART ROUTING: Hide Radar if they are a regular member (or not logged in)
+							if (link.name === "Radar" && (!user || user.role === "member")) return null;
+
+							// SMART ROUTING: Hide Dashboard if they aren't logged in
+							if (link.name === "Dashboard" && !user) return null;
+
 							// Determine if this route is currently active
 							const isActive = pathname === link.path || (link.path !== "/" && pathname.startsWith(link.path));
 
@@ -73,8 +80,8 @@ export default function Header({ user }: { user: any }) {
 									<Link
 										href={link.path}
 										className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 ${isActive
-												? "bg-white text-emerald-700 shadow-sm border border-gray-200/50"
-												: "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50/50"
+											? "bg-white text-emerald-700 shadow-sm border border-gray-200/50"
+											: "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50/50"
 											}`}
 									>
 										{link.icon && <link.icon className={`w-4 h-4 ${isActive ? "text-emerald-600" : "text-gray-400"}`} />}
@@ -124,7 +131,7 @@ export default function Header({ user }: { user: any }) {
 													<p className="text-xs text-gray-500 truncate">{user.email}</p>
 												</div>
 
-												{/* Dropdown Links */}
+												{/* Core Dropdown Links */}
 												<div className="p-2 space-y-1">
 													<Link href="/settings" onClick={() => setIsDropdownOpen(false)} className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">
 														<Settings className="w-4 h-4" /> Account Settings
@@ -134,6 +141,14 @@ export default function Header({ user }: { user: any }) {
 													</Link>
 												</div>
 
+												{/* Support / Help Links */}
+												<div className="p-2 border-t border-gray-100">
+													<a href="mailto:support@dawarha.com?subject=Bug%20Report" onClick={() => setIsDropdownOpen(false)} className="flex items-center gap-3 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-lg transition-colors font-medium">
+														<Bug className="w-4 h-4" /> Report a Bug
+													</a>
+												</div>
+
+												{/* Logout Action */}
 												<div className="p-2 border-t border-gray-100">
 													<form action={logOut}>
 														<button type="submit" className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
