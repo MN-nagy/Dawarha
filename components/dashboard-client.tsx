@@ -334,6 +334,7 @@ export function DashboardClient({
 										<RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
 										<Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
 										<Line type="monotone" name="Points Earned" dataKey="earned" stroke="#10b981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+										<Line type="monotone" name="Points Spent" dataKey="spent" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
 									</LineChart>
 								</ResponsiveContainer>
 							</div>
