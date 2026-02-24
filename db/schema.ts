@@ -88,7 +88,7 @@ export const UserProfiles = pgTable("user_profiles", {
     .unique(),
 
   // Base Identity
-  role: text("role").notNull().default("member"), // 'member', 'individual_collector', 'company_collector'
+  role: text("role").notNull().default("member"), // 'member', 'solo_collector', 'company_collector'
 
   // Collector Logistics
   preferredWaste: text("preferred_waste").default("all"), // 'plastic', 'metal', etc.
