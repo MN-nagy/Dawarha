@@ -4,7 +4,7 @@ import { motion, animate, useInView } from "framer-motion";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Leaf, MapPin, Truck, Coins, ShieldCheck, Factory, Users, ArrowRight, Sparkles, Shield } from "lucide-react";
+import { Leaf, MapPin, Truck, Coins, ShieldCheck, Factory, Users, ArrowRight, Sparkles, Recycle, Globe, Wind } from "lucide-react";
 import { Variants } from "framer-motion";
 
 // --- Custom Animated Counter Component ---
@@ -46,8 +46,9 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 	return (
 		<div className="relative w-full">
 
-			{/* --- FIXED BACKGROUND ANIMATIONS --- */}
+			{/* --- FIXED BACKGROUND ANIMATIONS (THEMATIC RECYCLING) --- */}
 			<div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+				{/* Ambient Color Blobs */}
 				<motion.div
 					className="absolute -top-20 right-10 w-[500px] h-[500px] rounded-full bg-emerald-100/40 blur-3xl"
 					animate={{ y: [0, -30, 0], scale: [1, 1.1, 1] }}
@@ -58,6 +59,42 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 					animate={{ x: [0, 40, 0], rotate: [0, 15, 0] }}
 					transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
 				/>
+
+				{/* Giant Slow-Spinning Recycle Icon */}
+				<motion.div
+					animate={{ rotate: 360 }}
+					transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
+					className="absolute top-1/4 -right-10 text-emerald-600/5"
+				>
+					<Recycle className="w-[400px] h-[400px]" />
+				</motion.div>
+
+				{/* Floating Leaf */}
+				<motion.div
+					animate={{ y: [0, -30, 0], x: [0, 20, 0], rotate: [0, 15, 0] }}
+					transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+					className="absolute top-1/3 left-10 text-emerald-600/10"
+				>
+					<Leaf className="w-32 h-32 transform -rotate-12" />
+				</motion.div>
+
+				{/* Drifting Globe */}
+				<motion.div
+					animate={{ y: [0, 40, 0], rotate: [0, -10, 0] }}
+					transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+					className="absolute bottom-1/4 right-[20%] text-blue-600/5"
+				>
+					<Globe className="w-48 h-48" />
+				</motion.div>
+
+				{/* Gentle Wind */}
+				<motion.div
+					animate={{ y: [0, -15, 0], x: [0, 30, 0] }}
+					transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+					className="absolute bottom-1/3 left-[20%] text-emerald-500/10"
+				>
+					<Wind className="w-24 h-24" />
+				</motion.div>
 			</div>
 
 			{/* --- SECTION 1: HERO --- */}
@@ -165,7 +202,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 						variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true }}
 						className="grid grid-cols-1 md:grid-cols-3 gap-12"
 					>
-						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white hover:shadow-xl border border-transparent hover:border-gray-100">
+						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white/90 hover:backdrop-blur-sm hover:shadow-xl border border-transparent hover:border-gray-100">
 							<div className="w-20 h-20 mx-auto bg-emerald-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-emerald-200">
 								<MapPin className="w-10 h-10 text-emerald-600" />
 							</div>
@@ -173,7 +210,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 							<p className="text-gray-600">Snap a photo of the waste, tag your location, and our AI instantly estimates the material and weight.</p>
 						</motion.div>
 
-						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white hover:shadow-xl border border-transparent hover:border-gray-100">
+						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white/90 hover:backdrop-blur-sm hover:shadow-xl border border-transparent hover:border-gray-100">
 							<div className="w-20 h-20 mx-auto bg-blue-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-blue-200">
 								<Truck className="w-10 h-10 text-blue-600" />
 							</div>
@@ -181,7 +218,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 							<p className="text-gray-600">Solo collectors and company fleets use the Dawarha Radar to find and claim waste near their active routes.</p>
 						</motion.div>
 
-						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white hover:shadow-xl border border-transparent hover:border-gray-100">
+						<motion.div variants={fadeUp} whileHover={{ y: -10 }} className="text-center relative p-6 rounded-3xl transition-colors hover:bg-white/90 hover:backdrop-blur-sm hover:shadow-xl border border-transparent hover:border-gray-100">
 							<div className="w-20 h-20 mx-auto bg-amber-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-amber-200">
 								<Coins className="w-10 h-10 text-amber-600" />
 							</div>
@@ -205,7 +242,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 						className="grid grid-cols-1 md:grid-cols-3 gap-8"
 					>
 						{/* Member Card */}
-						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
+						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white/90 backdrop-blur-sm p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
 							<Users className="w-8 h-8 text-emerald-500 mb-6" />
 							<h3 className="text-2xl font-bold text-gray-900 mb-2">Household Member</h3>
 							<p className="text-gray-600 mb-6">Perfect for individuals who want to report waste, clear their homes, and earn gamified rewards.</p>
@@ -217,19 +254,19 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 						</motion.div>
 
 						{/* Solo Collector Card */}
-						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
+						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white/90 backdrop-blur-sm p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
 							<Truck className="w-8 h-8 text-blue-500 mb-6" />
 							<h3 className="text-2xl font-bold text-gray-900 mb-2">Independent Collector</h3>
 							<p className="text-gray-600 mb-6">Designed for freelancers and local drivers looking to optimize their daily pickup routes.</p>
 							<ul className="space-y-3 text-sm font-medium text-gray-700">
 								<motion.li whileHover={{ x: 5 }} className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-blue-500" /> Live Radar Access</motion.li>
-								<motion.li whileHover={{ x: 5 }} className="flex items-center gap-2"><Shield it-Check className="w-4 h-4 text-blue-500" /> Turn-by-Turn Navigation</motion.li>
+								<motion.li whileHover={{ x: 5 }} className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-blue-500" /> Turn-by-Turn Navigation</motion.li>
 								<motion.li whileHover={{ x: 5 }} className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-blue-500" /> Route Management</motion.li>
 							</ul>
 						</motion.div>
 
 						{/* Company Card */}
-						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
+						<motion.div variants={fadeUp} whileHover={{ scale: 1.02, y: -5 }} className="bg-white/90 backdrop-blur-sm p-8 rounded-3xl shadow-sm border border-gray-100 transition-all cursor-default">
 							<Factory className="w-8 h-8 text-indigo-500 mb-6" />
 							<h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise Facility</h3>
 							<p className="text-gray-600 mb-6">For recycling plants and massive fleets requiring logistics oversight and corporate reporting.</p>
