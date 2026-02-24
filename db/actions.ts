@@ -936,3 +936,56 @@ export async function completeWastePickup(reportId: number) {
     return { error: "Failed to complete job." };
   }
 }
+
+export async function redeemReward(userId: number, rewardId: number) {
+    try {
+        const [user] = await db.select().from(Users).where(eq(Users.id, userId));
+
+        // 1. Define Available Rewards (Must match frontend ID)
+        const rewards = [
+            { id: 1, name: "100 EGP Cash via Vodafone Cash", cost: 500 },
+            { id: 2, name: "20% Off at Zara", cost: 200 },
+            { id: 3, name: "Free Coffee at Starbucks", cost: 150 },
+            { id: 4, name: "Donation to Green Egypt Charity", cost: 300 },
+            { id: 5, name: "500 EGP Carrefour Voucher", cost: 2000 },
+            { id: 6, name: "Cinema Ticket (IMAX)", cost: 400 },
+        ];
+
+        const reward = rewards.find(r => r.id === rewardId);
+        if (!reward) return { success: false, error: "Reward not found" };
+
+        // 2. Check Balance
+        if ((user.balance || 0) < reward.cost) {
+            return { success: false, error: "Insufficient balance" };
+        }
+
+        // 3. Deduct Points & Log Transaction
+        const newBalance = (user.balance || 0) - reward.cost;
+
+        await db.update(Users).set({ balance: newBalance }).where(eq(Users.id, userId));
+
+        // Generate a fake coupon code
+        const couponCode = `DW-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${new Date().getFullYear()}`;
+
+        await db.insert(Rewards).values({
+            userId: userId,
+            points: -reward.cost, // Negative points indicates a spend
+            description: `Redeemed: ${reward.name}`,
+            collectionInfo: `Coupon Code: ${couponCode}`
+        });
+
+        await db.insert(Notifications).values({
+            userId: userId,
+            message: `🎉 You redeemed ${reward.name}! Your code is ${couponCode}.`,
+            type: "reward_redeemed",
+            isRead: false
+        });
+
+        revalidatePath("/dashboard");
+        return { success: true, code: couponCode };
+
+    } catch (error) {
+        console.error("Redemption error:", error);
+        return { success: false, error: "Failed to redeem reward" };
+    }
+}
