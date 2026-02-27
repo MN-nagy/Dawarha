@@ -7,11 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { User, Shield, MapPin, Leaf, Truck, Loader2, Save, Info, Trash2, CheckCircle, Navigation, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Map } from "lucide-react";
 import dynamic from "next/dynamic";
 import { updateUserName, requestEmailChange, requestPasswordReset, submitCompanyVerification } from "@/db/actions";
@@ -100,11 +100,11 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 		startTransition(async () => {
 			const payloadRole = role;
 			// Solo defaults to all, Companies join their array into a string
-			const payloadWaste = role === "individual_collector"
+			const payloadWaste = role === "solo_collector"
 				? "all"
 				: (Array.isArray(preferredWaste) ? preferredWaste.join(",") : "all");
 			// Lock capacity securely on save
-			const payloadCapacity = role === "individual_collector" ? "small_under_20" : "large_over_20";
+			const payloadCapacity = role === "solo_collector" ? "small_under_20" : "large_over_20";
 			const payloadCompanyType = role === "company_collector" ? companyType : null;
 
 
@@ -212,7 +212,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 		});
 	};
 
-	const isSoloAtLimit = role === "individual_collector" && savedLocations.length >= 1;
+	const isSoloAtLimit = role === "solo_collector" && savedLocations.length >= 1;
 
 	return (
 		<div className="flex flex-col md:flex-row gap-6">
@@ -313,8 +313,8 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 									<h3 className="font-bold text-gray-900 text-sm mb-1">Standard Member</h3>
 									<p className="text-xs text-gray-500 mt-1">Report waste only.</p>
 								</div>
-								<div onClick={() => setRole("individual_collector")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "individual_collector" ? "border-indigo-500 bg-indigo-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-indigo-200 hover:bg-gray-50"}`}>
-									<div className={`p-3 rounded-full mb-3 ${role === "individual_collector" ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-500"}`}><User className="w-5 h-5" /></div>
+								<div onClick={() => setRole("solo_collector")} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center text-center transition-all duration-200 ${role === "solo_collector" ? "border-indigo-500 bg-indigo-50 shadow-md scale-[1.02]" : "border-gray-200 hover:border-indigo-200 hover:bg-gray-50"}`}>
+									<div className={`p-3 rounded-full mb-3 ${role === "solo_collector" ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-500"}`}><User className="w-5 h-5" /></div>
 									<h3 className="font-bold text-gray-900 text-sm mb-1">Solo Collector</h3>
 									<p className="text-xs text-gray-500 mt-1">Personal vehicle pickups.</p>
 								</div>
@@ -344,13 +344,13 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 					{(activeTab === "logistics") && role !== "member" && (
 						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
 							{/* THE SOLO COLLECTOR VIEW */}
-							{role === "individual_collector" && (
+							{role === "solo_collector" && (
 								<div className="space-y-6">
 									<Alert className="bg-indigo-50 border-indigo-200">
 										<Info className="h-4 w-4 text-indigo-600" />
 										<AlertTitle className="text-indigo-800 font-bold">Solo Collector Restrictions Active</AlertTitle>
 										<AlertDescription className="text-indigo-700/80">
-											As an individual collector, you are automatically set to collect <strong>mixed materials</strong> for <strong>small loads (&lt; 20kg)</strong>.
+											As an Solo collector, you are automatically set to collect <strong>mixed materials</strong> for <strong>small loads (&lt; 20kg)</strong>.
 										</AlertDescription>
 									</Alert>
 
@@ -613,10 +613,10 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 								<div className="flex justify-between items-center mb-4">
 									<div>
 										<h3 className="text-lg font-bold text-gray-900">Operating Locations</h3>
-										<p className="text-sm text-gray-500">{role === "individual_collector" ? "Set your home base." : "Add all your operational branch offices."}</p>
+										<p className="text-sm text-gray-500">{role === "solo_collector" ? "Set your home base." : "Add all your operational branch offices."}</p>
 									</div>
 									<div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-										{savedLocations.length} {role === "individual_collector" ? "/ 1 Location" : "Locations"} Saved
+										{savedLocations.length} {role === "solo_collector" ? "/ 1 Location" : "Locations"} Saved
 									</div>
 								</div>
 

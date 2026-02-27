@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { db } from "@/db/index";
 import {
   Users,
@@ -23,8 +23,12 @@ import { z } from "zod";
 import { Resend } from "resend";
 import crypto from "crypto";
 import { stripe } from "@/lib/stripe";
+// --- Helpers ---
+import { getDistanceFromLatLonInKm, parseWeightToKg } from "@/db/db-helpers";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// --- User Account Related ---
 
 export async function getUserByEmail(email: string) {
   const existingUser = await db
@@ -36,18 +40,7 @@ export async function getUserByEmail(email: string) {
   return existingUser[0] ?? null;
 }
 
-export async function confirmPass(prevState: any, formData: FormData) {
-  const password = formData.get("password") as string;
-  const confirm = formData.get("confirm-password") as string;
-
-  if (password === confirm) {
-    return null;
-  } else {
-    return { error: "Passwords doesn't match!" };
-  }
-}
-
-export async function createUser(prevState: any, formData: FormData) {
+export async function createUser(_prevState: any, formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -76,7 +69,7 @@ export async function createUser(prevState: any, formData: FormData) {
   }
 }
 
-export async function logIn(prevState: any, formData: FormData) {
+export async function logIn(_prevState: any, formData: FormData) {
   try {
     await signIn("credentials", {
       email: formData.get("email"),
@@ -103,7 +96,7 @@ export async function logOut() {
   await signOut({ redirectTo: "/" });
 }
 
-// report
+// --- Report ---
 const reportSchema = z.object({
   wasteType: z.string().min(1, "Waste type is required."),
   amount: z.string().min(1, "Amount is required."),
@@ -121,7 +114,7 @@ const reportSchema = z.object({
   longitude: z.string().min(1, "Longitude coordinates are required."),
 });
 
-export async function createReport(prevState: any, formData: FormData) {
+export async function createReport(_prevState: any, formData: FormData) {
   try {
     const session = await auth();
 
@@ -167,7 +160,9 @@ export async function createReport(prevState: any, formData: FormData) {
   }
 }
 
-// for dashboard list.
+// --- Fetch Reports  ---
+
+// (For Dashboard List)
 export async function getRecentReports() {
   const session = await auth();
   if (!session?.user?.email) return [];
@@ -190,7 +185,23 @@ export async function getRecentReports() {
   }
 }
 
-// Analyze with ai
+// (For Explore)
+export async function getAvailableReports() {
+  try {
+    const reports = await db
+      .select()
+      .from(Reports)
+      .where(eq(Reports.status, "pending"))
+      .orderBy(desc(Reports.createdAt));
+
+    return reports;
+  } catch (error) {
+    console.log("Error fetching reports for feed", error);
+    return [];
+  }
+}
+
+// --- Analyze With AI ---
 export async function analyzeWasteImage(formData: FormData) {
   try {
     // 1. Extract the raw File and description from the FormData
@@ -204,6 +215,7 @@ export async function analyzeWasteImage(formData: FormData) {
     // 2. Convert the File into a Buffer for Gemini
     const buffer = await file.arrayBuffer();
 
+    // 3. Prompt Eng
     const { output } = await generateText({
       model: google("gemini-2.5-flash"),
       output: Output.object({
@@ -237,7 +249,7 @@ export async function analyzeWasteImage(formData: FormData) {
           content: [
             {
               type: "text",
-              text: `Analyze this image of waste. User provided context: "${userDescription}". 
+              text: `Analyze this image of waste. User provided context: "${userDescription}".
                  Step 1: Determine the single DOMINANT material.
                  Step 2: Estimate the weight of that dominant material.
                  Step 3: Identify any OTHER secondary waste types and estimate their weights.
@@ -258,22 +270,6 @@ export async function analyzeWasteImage(formData: FormData) {
       error:
         error instanceof Error ? error.message : "Failed to analyze image.",
     };
-  }
-}
-
-// fetching Reports
-export async function getAvailableReports() {
-  try {
-    const reports = await db
-      .select()
-      .from(Reports)
-      .where(eq(Reports.status, "pending"))
-      .orderBy(desc(Reports.createdAt));
-
-    return reports;
-  } catch (error) {
-    console.log("Error fetching reports for feed", error);
-    return [];
   }
 }
 
@@ -334,7 +330,7 @@ export async function updateProfileSettings(
       await db.insert(UserProfiles).values({ userId, ...data });
     }
 
-    // Keep the base Users table role in sync!
+    // Keep the base Users table role in sync.
     await db.update(Users).set({ role: data.role }).where(eq(Users.id, userId));
 
     revalidatePath("/settings");
@@ -376,7 +372,12 @@ export async function removeCompanyLocation(
     // Verify the user owns this location before deleting
     await db
       .delete(CompanyLocations)
-      .where(eq(CompanyLocations.id, locationId)); // In a real app, also add: .and(eq(CompanyLocations.userId, userId))
+      .where(
+        and(
+          eq(CompanyLocations.id, locationId),
+          eq(CompanyLocations.userId, userId),
+        ),
+      ); // acconting for BOLA (Broken Object Level Authorization)
 
     revalidatePath("/settings");
     return { success: "Location removed." };
@@ -386,7 +387,6 @@ export async function removeCompanyLocation(
 }
 
 // --- IAM (IDENTITY & ACCESS MANAGEMENT) ---
-
 export async function updateUserName(userId: number, newName: string) {
   try {
     await db.update(Users).set({ name: newName }).where(eq(Users.id, userId));
@@ -403,6 +403,32 @@ export async function requestEmailChange(
   newEmail: string,
 ) {
   try {
+    // Check if they are just submitting the same email
+    if (currentEmail.toLowerCase() === newEmail.toLowerCase()) {
+      return { error: "New email must be different from your current email." };
+    }
+
+    // Fetch the user to verify the current email matches the database
+    // This stops attackers from sending random userIds with fake currentEmails
+    const [dbUser] = await db.select().from(Users).where(eq(Users.id, userId));
+
+    if (!dbUser) {
+      return { error: "User not found." };
+    }
+
+    if (dbUser.email !== currentEmail) {
+      return {
+        error:
+          "Authentication failed. Current email does not match our records.",
+      };
+    }
+
+    // Check if the new email is already taken by someone else
+    const emailExists = await getUserByEmail(newEmail);
+    if (emailExists) {
+      return { error: "This email is already in use by another account." };
+    }
+
     // 1. Generate a secure random token
     const token = crypto.randomBytes(32).toString("hex");
     const OneHourInMs = 60 * 60 * 1000;
@@ -416,7 +442,8 @@ export async function requestEmailChange(
       type: "email_change",
     });
 
-    // 3. Send the email (In production, replace 'onboarding@resend.dev' with your verified domain)
+    // 3. Send the email
+    //TODO: In production, replace 'onboarding@resend.dev' with your verified domain
     const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}&type=email&id=${userId}`;
 
     await resend.emails.send({
@@ -453,7 +480,7 @@ export async function requestPasswordReset(email: string) {
   try {
     const user = await getUserByEmail(email);
     if (!user)
-      return { error: "If an account exists, a reset link has been sent." }; // Security best practice: don't reveal if email exists
+      return { error: "If an account exists, a reset link has been sent." }; // don't reveal if email exists
 
     const token = crypto.randomBytes(32).toString("hex");
     const OneHourInMs = 60 * 60 * 1000;
@@ -468,7 +495,6 @@ export async function requestPasswordReset(email: string) {
 
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}&type=password`;
 
-    // Replace the old resend.emails.send block with this:
     await resend.emails.send({
       from: "Dawarha Support <onboarding@resend.dev>",
       to: email,
@@ -521,7 +547,6 @@ export async function submitCompanyVerification(
 }
 
 // --- BILLING & SUBSCRIPTIONS ---
-
 export async function createStripeCheckoutSession(
   userId: number,
   email: string,
@@ -533,7 +558,7 @@ export async function createStripeCheckoutSession(
       return { error: "Stripe Price ID is not configured on the server." };
     }
 
-    // Tell Stripe to generate a secure, hosted checkout page
+    // Generating a secure, hosted checkout page with Stripe
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -545,9 +570,9 @@ export async function createStripeCheckoutSession(
       mode: "subscription",
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?billing=success`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?billing=canceled`,
-      customer_email: email, // Auto-fills the checkout so they don't have to type it again
+      customer_email: email, // Auto-fills the checkout (so they don't have to type it again)
       metadata: {
-        userId: userId.toString(), // CRITICAL: We need this later to know WHO paid when Stripe pings our webhook!
+        userId: userId.toString(), // Needed to how who paid when stripe pings our webhook.
       },
     });
 
@@ -582,48 +607,7 @@ export async function createStripePortalSession(customerId: string) {
 
 // --- FEED RADAR ENGINE (PERSONALIZED) ---
 
-// Helper 1: The Haversine Formula (Calculates distance over the Earth's curve)
-function getDistanceFromLatLonInKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-) {
-  const R = 6371; // Radius of the earth in kilometers
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) *
-      Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI / 180);
-}
-
-// Helper 2: AI Weight Parser (Turns "1.5 tons" into 1500)
-function parseWeightToKg(weightStr: string | null): number {
-  if (!weightStr) return 0;
-  const lowerStr = weightStr.toLowerCase();
-
-  // Extract only the numbers and decimals using a Regular Expression
-  let num = parseFloat(lowerStr.replace(/[^0-9.]/g, ""));
-  if (isNaN(num)) return 0;
-
-  // If the AI used the word "ton", multiply by 1000 to keep it in KG
-  if (lowerStr.includes("ton")) num *= 1000;
-
-  return num;
-}
-
-// Main Function: Get the highly personalized Feed
+// Get Personalized Feed
 export async function getPersonalizedFeed() {
   const session = await auth();
   if (!session?.user?.email) return { error: "Unauthorized" };
@@ -671,7 +655,7 @@ export async function getPersonalizedFeed() {
           if (dist < minDistance) minDistance = dist;
         }
 
-        // Inject the distance into the report object so the UI can display it!
+        // Inject the distance into the report object so the UI can display it.
         return { ...report, distance: minDistance };
       })
       .filter((report) => {
@@ -687,7 +671,7 @@ export async function getPersonalizedFeed() {
         }
 
         // D. Filter by Scale / Capacity Restrictions
-        if (profile.role === "individual_collector" && report.scale !== "small")
+        if (profile.role === "solo_collector" && report.scale !== "small")
           return false;
         if (profile.role === "company_collector" && report.scale !== "large")
           return false;
@@ -725,8 +709,7 @@ export async function getPersonalizedFeed() {
   }
 }
 
-// --- COLLECT & REWARD POINTS ENGINE ---
-// ==========================================
+// --- COLLECT & REWARD POINTS ENGINE --- \\
 
 // --- CLAIM ROUTE (STEP 1: IN PROGRESS) ---
 export async function claimWasteReport(reportId: number) {
@@ -752,7 +735,7 @@ export async function claimWasteReport(reportId: number) {
       .set({ status: "in_progress", collectorId: dbUser.id })
       .where(eq(Reports.id, reportId));
 
-    // 2. Notify the Member so they know someone is coming!
+    // 2. Notify the Member so they know someone is coming
     await db.insert(Notifications).values({
       userId: report.userId,
       message: `🚚 Good news! A collector has reserved your ${report.wasteType} and is planning their route.`,
@@ -801,7 +784,7 @@ export async function completeWastePickup(reportId: number) {
     // Solo collectors get 15 points. Companies get 0.
     // (We check dbUser.role since it syncs with UserProfiles)
     let collectorPoints = 0;
-    if (dbUser.role === "individual_collector") {
+    if (dbUser.role === "solo_collector") {
       collectorPoints = 15;
     }
 
@@ -937,55 +920,59 @@ export async function completeWastePickup(reportId: number) {
   }
 }
 
+// --- Redeem Market --- \\
+
 export async function redeemReward(userId: number, rewardId: number) {
-    try {
-        const [user] = await db.select().from(Users).where(eq(Users.id, userId));
+  try {
+    const [user] = await db.select().from(Users).where(eq(Users.id, userId));
 
-        // 1. Define Available Rewards (Must match frontend ID)
-        const rewards = [
-            { id: 1, name: "100 EGP Cash via Vodafone Cash", cost: 500 },
-            { id: 2, name: "20% Off at Zara", cost: 200 },
-            { id: 3, name: "Free Coffee at Starbucks", cost: 150 },
-            { id: 4, name: "Donation to Green Egypt Charity", cost: 300 },
-            { id: 5, name: "500 EGP Carrefour Voucher", cost: 2000 },
-            { id: 6, name: "Cinema Ticket (IMAX)", cost: 400 },
-        ];
+    // 1. Define Available Rewards (Must match frontend ID)
+    const rewards = [
+      { id: 1, name: "100 EGP Cash via Vodafone Cash", cost: 500 },
+      { id: 2, name: "20% Off at Zara", cost: 200 },
+      { id: 3, name: "Free Coffee at Starbucks", cost: 150 },
+      { id: 4, name: "Donation to Green Egypt Charity", cost: 300 },
+      { id: 5, name: "500 EGP Carrefour Voucher", cost: 2000 },
+      { id: 6, name: "Cinema Ticket (IMAX)", cost: 400 },
+    ];
 
-        const reward = rewards.find(r => r.id === rewardId);
-        if (!reward) return { success: false, error: "Reward not found" };
+    const reward = rewards.find((r) => r.id === rewardId);
+    if (!reward) return { success: false, error: "Reward not found" };
 
-        // 2. Check Balance
-        if ((user.balance || 0) < reward.cost) {
-            return { success: false, error: "Insufficient balance" };
-        }
-
-        // 3. Deduct Points & Log Transaction
-        const newBalance = (user.balance || 0) - reward.cost;
-
-        await db.update(Users).set({ balance: newBalance }).where(eq(Users.id, userId));
-
-        // Generate a fake coupon code
-        const couponCode = `DW-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${new Date().getFullYear()}`;
-
-        await db.insert(Rewards).values({
-            userId: userId,
-            points: -reward.cost, // Negative points indicates a spend
-            description: `Redeemed: ${reward.name}`,
-            collectionInfo: `Coupon Code: ${couponCode}`
-        });
-
-        await db.insert(Notifications).values({
-            userId: userId,
-            message: `🎉 You redeemed ${reward.name}! Your code is ${couponCode}.`,
-            type: "reward_redeemed",
-            isRead: false
-        });
-
-        revalidatePath("/dashboard");
-        return { success: true, code: couponCode };
-
-    } catch (error) {
-        console.error("Redemption error:", error);
-        return { success: false, error: "Failed to redeem reward" };
+    // 2. Check Balance
+    if ((user.balance || 0) < reward.cost) {
+      return { success: false, error: "Insufficient balance" };
     }
+
+    // 3. Deduct Points & Log Transaction
+    const newBalance = (user.balance || 0) - reward.cost;
+
+    await db
+      .update(Users)
+      .set({ balance: newBalance })
+      .where(eq(Users.id, userId));
+
+    // Generate a fake coupon code
+    const couponCode = `DW-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${new Date().getFullYear()}`;
+
+    await db.insert(Rewards).values({
+      userId: userId,
+      points: -reward.cost, // Negative points indicates a spend
+      description: `Redeemed: ${reward.name}`,
+      collectionInfo: `Coupon Code: ${couponCode}`,
+    });
+
+    await db.insert(Notifications).values({
+      userId: userId,
+      message: `🎉 You redeemed ${reward.name}! Your code is ${couponCode}.`,
+      type: "reward_redeemed",
+      isRead: false,
+    });
+
+    revalidatePath("/dashboard");
+    return { success: true, code: couponCode };
+  } catch (error) {
+    console.error("Redemption error:", error);
+    return { success: false, error: "Failed to redeem reward" };
+  }
 }

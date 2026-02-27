@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 const f = createUploadthing();
 
 // FileRouter for your app, can contain multiple "routes"
-export const ourFileRouter = {
+export const fileRouter = {
   // Define a route for waste images
   wasteImage: f({ image: { maxFileSize: "32MB", maxFileCount: 1 } })
     // Set permissions and file types for this route
@@ -28,12 +28,17 @@ export const ourFileRouter = {
     }),
 
   // company
-  companyDocument: f({
-    pdf: { maxFileSize: "256MB" },
-  }).onUploadComplete(async ({ metadata, file }) => {
-    console.log("Document uploaded:", file.ufsUrl);
-    return { fileUrl: file.ufsUrl };
-  }),
+  companyDocument: f({ pdf: { maxFileSize: "256MB" } })
+    .middleware(async () => {
+      const session = await auth();
+      if (!session?.user) throw new Error("Unauthorized");
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      console.log("Document uploaded by:", metadata.userId);
+      console.log("File url:", file.ufsUrl); // or file.url
+      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
+    }),
 } satisfies FileRouter;
 
-export type OurFileRouter = typeof ourFileRouter;
+export type FileRouterType = typeof fileRouter;

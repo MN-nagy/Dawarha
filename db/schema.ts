@@ -9,7 +9,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
-// USERS TABLE
+// --- USERS TABLE ---
 export const Users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -20,7 +20,7 @@ export const Users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// REPORTS TABLE (core func)
+// --- REPORTS TABLE (core func) ---
 export const Reports = pgTable("reports", {
   id: serial("id").notNull().primaryKey(),
   userId: integer("user_id")
@@ -42,7 +42,7 @@ export const Reports = pgTable("reports", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// REWARDS TABLE (Transactions)
+// --- REWARDS TABLE (Transactions) ---
 export const Rewards = pgTable("rewards", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
@@ -54,7 +54,7 @@ export const Rewards = pgTable("rewards", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// COLLECTED WASTE table (traking collections)
+// --- COLLECTED WASTE table (traking collections) ---
 export const CollectedWastes = pgTable("collected_wastes", {
   id: serial("id").primaryKey(),
   reportId: integer("report_id")
@@ -67,7 +67,7 @@ export const CollectedWastes = pgTable("collected_wastes", {
   status: varchar("status", { length: 20 }).notNull().default("collected"),
 });
 
-// NOTIFICATIONS TABLE (real-time updates)
+// --- NOTIFICATIONS TABLE (real-time updates) ---
 export const Notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
@@ -79,7 +79,7 @@ export const Notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// --- THE USER PROFILE TABLE (1-to-1 with your main User table) ---
+// --- THE USER PROFILE TABLE (for updating user info) (1-to-1 with Users table) ---
 export const UserProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
@@ -104,14 +104,14 @@ export const UserProfiles = pgTable("user_profiles", {
   contributionModel: varchar("contribution_model", { length: 50 }).default(
     "subscription",
   ), // 'subscription' or 'reward_partner'
-  slaDocumentUrl: text("sla_document_url"), // URL for the signed SLA
+  slaDocumentUrl: text("sla_document_url"), // URL for the signed SLA (URL from UploadThing)
 
   verificationStatus: varchar("verification_status", { length: 50 })
     .notNull()
     .default("unverified"), // 'unverified', 'pending', 'verified', 'rejected'
   verificationDocumentUrl: text("verification_document_url"), // URL from UploadThing
 
-  // strip
+  // strip config
   stripeCustomerId: varchar("stripe_customer_id", { length: 255 }).unique(),
   stripeSubscriptionId: varchar("stripe_subscription_id", {
     length: 255,
@@ -130,7 +130,7 @@ export const CompanyLocations = pgTable("company_locations", {
     .references(() => Users.id)
     .notNull(), // This links back to the user
 
-  // The exact same structure we used for the Reports!
+  // The exact same structure we used for the Reports location
   address: text("address").notNull(),
   latitude: text("latitude").notNull(),
   longitude: text("longitude").notNull(),
