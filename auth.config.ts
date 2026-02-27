@@ -5,24 +5,26 @@ export const authConfig = {
     signIn: "/login",
   },
   callbacks: {
+    // --- To Disable Certian Tabs for Certian Roles ---
+
     // 1. Pass the role from the database user object to the JWT token
     async jwt({ token, user }) {
       if (user) {
-        // @ts-ignore - NextAuth types don't know about our custom 'role' field by default
+        // extended the type by Module Augmentation
         token.role = user.role;
       }
       return token;
     },
+
     // 2. Pass the role from the JWT token to the active browser session object
     async session({ session, token }) {
       if (session.user && token.role) {
-        // @ts-ignore
         session.user.role = token.role as string;
       }
       return session;
     },
 
-    // 3. Your existing route protection logic
+    // --- Gurds ---
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
 

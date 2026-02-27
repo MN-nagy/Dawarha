@@ -54,18 +54,18 @@ export default function AboutClient({ user }: { user: any }) {
 
 
 	return (
-		<main className="flex-grow relative overflow-hidden md:py-12">
+		<main className="grow relative overflow-hidden md:py-12">
 
-			{/* ==================== BACKGROUND ANIMATION LAYER ==================== */}
+			{/* BACKGROUND ANIMATION LAYER */}
 			<div className="absolute inset-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
 				{/* Soft Gradient Blobs */}
 				<motion.div
 					variants={floatVariant1} animate="animate"
-					className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-200/30 rounded-full blur-3xl opacity-60 -translate-x-1/2 -translate-y-1/4"
+					className="absolute top-0 left-0 w-125 h-125 bg-emerald-200/30 rounded-full blur-3xl opacity-60 -translate-x-1/2 -translate-y-1/4"
 				/>
 				<motion.div
 					variants={floatVariant2} animate="animate"
-					className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-green-100/40 rounded-full blur-3xl opacity-60 translate-x-1/3 translate-y-1/3"
+					className="absolute bottom-0 right-0 w-100 h-100 bg-green-100/40 rounded-full blur-3xl opacity-60 translate-x-1/3 translate-y-1/3"
 				/>
 
 				{/* Thematic Floating Icons */}
@@ -81,7 +81,7 @@ export default function AboutClient({ user }: { user: any }) {
 			</div>
 
 
-			{/* ==================== MAIN FOREGROUND CONTENT ==================== */}
+			{/* MAIN FOREGROUND CONTENT */}
 			<div className="relative z-10 max-w-4xl mx-auto w-full p-6">
 				<motion.div
 					variants={containerVariants}

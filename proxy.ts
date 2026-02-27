@@ -4,5 +4,6 @@ import { authConfig } from "@/auth.config";
 export default NextAuth(authConfig).auth;
 
 export const config = {
+  // run on every route except static. "Black list approach".
   matcher: ["/((?!api|_next/static|_next/image|.*\\.png$).*)"],
 };
