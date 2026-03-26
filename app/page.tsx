@@ -23,7 +23,7 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <Header user={session?.user} />
-      <main className="flex-grow">
+      <main className="grow">
         <AnimatedHome user={session?.user} stats={stats} />
       </main>
     </div>
