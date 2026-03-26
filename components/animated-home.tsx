@@ -50,12 +50,12 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 			<div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
 				{/* Ambient Color Blobs */}
 				<motion.div
-					className="absolute -top-20 right-10 w-[500px] h-[500px] rounded-full bg-emerald-100/40 blur-3xl"
+					className="absolute -top-20 right-10 w-125 h-125 rounded-full bg-emerald-100/40 blur-3xl"
 					animate={{ y: [0, -30, 0], scale: [1, 1.1, 1] }}
 					transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
 				/>
 				<motion.div
-					className="absolute bottom-10 -left-20 w-[400px] h-[400px] rounded-full bg-green-100/40 blur-3xl"
+					className="absolute bottom-10 -left-20 w-125 h-125 rounded-full bg-green-100/40 blur-3xl"
 					animate={{ x: [0, 40, 0], rotate: [0, 15, 0] }}
 					transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
 				/>
@@ -66,7 +66,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 					transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
 					className="absolute top-1/4 -right-10 text-emerald-600/5"
 				>
-					<Recycle className="w-[400px] h-[400px]" />
+					<Recycle className="w-125 h-125" />
 				</motion.div>
 
 				{/* Floating Leaf */}
@@ -117,7 +117,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 						className="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-tight"
 					>
 						Recycle smarter with <br className="hidden md:block" />
-						<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-green-500">Dawarha.</span>
+						<span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-600 to-green-500">Dawarha.</span>
 					</motion.h1>
 
 					<motion.p

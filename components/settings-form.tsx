@@ -214,6 +214,20 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 
 	const isSoloAtLimit = role === "solo_collector" && savedLocations.length >= 1;
 
+
+	// for now
+	const handleReset = () => {
+		startTransition(async () => {
+			const res = await requestPasswordReset(baseUser.email);
+
+			if (res.success) {
+				toast.success(res.success);
+			} else {
+				toast.error(res.error);
+			}
+		})
+	}
+
 	return (
 		<div className="flex flex-col md:flex-row gap-6">
 
@@ -289,7 +303,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 										<p className="text-sm font-semibold text-gray-900">Password</p>
 										<p className="text-sm text-gray-500 mt-1">••••••••••••</p>
 									</div>
-									<Button variant="outline" size="sm" onClick={() => startTransition(async () => { const res = await requestPasswordReset(baseUser.email); res.success ? toast.success(res.success) : toast.error(res.error); })} disabled={isPending}>
+									<Button variant="outline" size="sm" onClick={handleReset} disabled={isPending}>
 										Change Password
 									</Button>
 								</div>
