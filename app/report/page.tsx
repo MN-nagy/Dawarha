@@ -7,7 +7,6 @@ import AnimatedReport from "@/components/animated-report";
 export default async function ReportPage() {
 	const session = await auth();
 
-	// Protect the route
 	if (!session?.user) {
 		redirect("/login");
 	}

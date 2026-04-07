@@ -14,16 +14,18 @@ import { Badge } from "./ui/badge";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { toast } from "sonner";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Map } from "lucide-react"; // <-- Make sure to add Map to your lucide-react imports!
+import { Map } from "lucide-react";
 import dynamic from "next/dynamic";
 
 export function ReportForm() {
 	const [state, formAction, isPending] = useActionState(createReport, null);
 
+	// drage file to upload
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 
+	// form content
 	const [wasteType, setWasteType] = useState<string>("plastic");
 	const [amount, setAmount] = useState<string>("");
 	const [description, setDescription] = useState<string>("");
@@ -31,14 +33,14 @@ export function ReportForm() {
 	const [scale, setScale] = useState<string>("small");
 	const [totalWasteAmount, setTotalWasteAmount] = useState<string>("");
 
-	// 👇 NEW: OpenStreetMap States 👇
+	// OpenStreetMap States
 	const [_locationQuery, setLocationQuery] = useState("");
 	const [_osmResults, setOsmResults] = useState<any[]>([]);
 	const [_isSearchingOSM, _setIsSearchingOSM] = useState(false);
 	const [coordinates, setCoordinates] = useState<{ lat: string, lng: string } | null>(null);
-	// const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	// const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null); // for search functinality
 
-	// 👇 The Strict Coordinate States 👇
+	// The Strict Coordinate States
 	const [manualCoords, setManualCoords] = useState("");
 	const [approximateAddress, setApproximateAddress] = useState<string>("");
 	const [isFetchingAddress, setIsFetchingAddress] = useState(false);
@@ -79,7 +81,10 @@ export function ReportForm() {
 		}
 	}, [state]);
 
-	// ... [Keep your handleFileChange, handleDragOver, handleDragLeave, handleDrop exactly the same] ...
+	// Handlers
+
+
+	// drage/drop handler
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && e.target.files[0]) {
 			const file = e.target.files[0];
@@ -148,7 +153,7 @@ export function ReportForm() {
 	};
 
 
-	// 👇 NEW: The Debounced OSM Search Function 👇
+	// The Debounced OSM Search
 	// const handleLocationType = (e: React.ChangeEvent<HTMLInputElement>) => {
 	// 	const text = e.target.value;
 	// 	setLocationQuery(text);
@@ -178,10 +183,18 @@ export function ReportForm() {
 	// 	}, 500);
 	// };
 
+
+	// When the user clicks a result from the dropdown
+	// const selectOSMResult = (result: any) => {
+	// 	setLocationQuery(result.display_name); // Put the full address in the input
+	// 	setCoordinates({ lat: result.lat, lng: result.lon }); // Save exact coords
+	// 	setOsmResults([]); // Hide the dropdown
+	// };
+
 	const fetchAddressFromCoords = async (lat: string, lng: string) => {
 		setIsFetchingAddress(true);
 		try {
-			// Ask OpenStreetMap what is at this exact spot
+			// fetch exact spot from OpenStreetMap
 			const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
 			const data = await res.json();
 
@@ -196,13 +209,6 @@ export function ReportForm() {
 			setIsFetchingAddress(false);
 		}
 	};
-
-	// When the user clicks a result from the dropdown
-	// const selectOSMResult = (result: any) => {
-	// 	setLocationQuery(result.display_name); // Put the full address in the input
-	// 	setCoordinates({ lat: result.lat, lng: result.lon }); // Save exact coords
-	// 	setOsmResults([]); // Hide the dropdown
-	// };
 
 	const handleGetLocation = () => {
 		setIsLocating(true);
@@ -257,15 +263,6 @@ export function ReportForm() {
 
 			<CardContent className="p-6">
 				<motion.form ref={formRef} onSubmit={handleSubmit} className="space-y-6" variants={containerVariants} initial="hidden" animate="show">
-
-					{/* ... [Success/Error Messages] ... */}
-					{ /* commented out for now "testing toast" */}
-					{/* <AnimatePresence> */}
-					{/* 	{state?.success && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-green-50 text-green-700 p-3 rounded-md text-sm mb-4">🎉 {state.success}</motion.div>)} */}
-					{/* 	{state?.error && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">⚠️ {state.error}</motion.div>)} */}
-					{/* </AnimatePresence> */}
-
-					{/* <input type="hidden" name="scale" value={scale} /> */}
 
 
 					{/* 1. Image Upload */}
@@ -447,7 +444,7 @@ export function ReportForm() {
 						<Button
 							type="submit"
 							className="w-full bg-emerald-600 hover:bg-emerald-700"
-							disabled={isPending || isUploading || !selectedFile || isAnalyzing || !coordinates} // 👈 MUST have coordinates
+							disabled={isPending || isUploading || !selectedFile || isAnalyzing || !coordinates}
 						>
 							{isUploading || isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</> : "Submit Report"}
 						</Button>

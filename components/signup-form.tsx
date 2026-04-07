@@ -36,7 +36,7 @@ export function SignupForm({
 
       return () => clearTimeout(timer);
     }
-  })
+  }, [state, router]);
 
 
   return (
