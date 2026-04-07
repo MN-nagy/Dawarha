@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { createUser } from "@/db/actions";
 import {
   Select,
@@ -91,7 +91,7 @@ export function SignupForm({
                 <Label htmlFor="confirm-password">Confirm Password</Label>
                 <Input
                   id="confirm-password"
-                  name="confirm-password" // 👈 ADD THIS
+                  name="confirm-password"
                   type="password"
                   placeholder="••••••••"
                   required
@@ -102,9 +102,8 @@ export function SignupForm({
               <div className="grid gap-2">
                 <Label htmlFor="role">Role</Label>
 
-                {/* FIX: Add name="role" here so FormData can see it */}
                 <Select name="role" defaultValue="member">
-                  <SelectTrigger className="w-full"> {/* Changed w-43 to w-full for better layout */}
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
