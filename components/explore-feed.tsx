@@ -174,7 +174,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 				{/* Dropdown Filters */}
 				<div className="grid grid-cols-2 sm:flex sm:flex-row gap-3 w-full lg:w-auto">
 					<Select value={filterType} onValueChange={setFilterType}>
-						<SelectTrigger className="w-full sm:w-[140px] bg-white h-10">
+						<SelectTrigger className="w-full sm:w-35 bg-white h-10">
 							<Filter className="w-3.5 h-3.5 mr-2 text-gray-400" />
 							<SelectValue placeholder="Material" />
 						</SelectTrigger>
@@ -189,7 +189,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 					</Select>
 
 					<Select value={filterScale} onValueChange={setFilterScale}>
-						<SelectTrigger className="w-full sm:w-[140px] bg-white h-10">
+						<SelectTrigger className="w-full sm:w-35 bg-white h-10">
 							<SelectValue placeholder="Scale" />
 						</SelectTrigger>
 						<SelectContent>
@@ -200,7 +200,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 					</Select>
 
 					<Select value={sortBy} onValueChange={setSortBy}>
-						<SelectTrigger className="w-full sm:w-[140px] bg-white h-10 col-span-2 sm:col-span-1">
+						<SelectTrigger className="w-full sm:w-35 bg-white h-10 col-span-2 sm:col-span-1">
 							<ArrowUpDown className="w-3.5 h-3.5 mr-2 text-gray-400" />
 							<SelectValue placeholder="Sort" />
 						</SelectTrigger>
@@ -249,7 +249,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 									</div>
 
 									{/* Bottom gradient & Weight */}
-									<div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-12 flex justify-end">
+									<div className="absolute bottom-0 inset-x-0 bg-linear-to-t from-black/60 to-transparent p-3 pt-12 flex justify-end">
 										<div className="flex items-center gap-1.5 text-white font-black text-lg drop-shadow-md">
 											<Weight className="w-5 h-5 text-emerald-400" />
 											{report.totalWasteAmount}
@@ -257,7 +257,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 									</div>
 								</div>
 
-								<CardContent className="p-5 flex-grow space-y-3">
+								<CardContent className="p-5 grow space-y-3">
 									<div className="flex items-start gap-2 text-gray-700">
 										<MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
 										<span className="font-medium text-sm line-clamp-2 leading-tight">{report.location}</span>

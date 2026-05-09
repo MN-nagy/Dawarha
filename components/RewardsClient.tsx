@@ -164,7 +164,7 @@ export default function RewardsClient({ user, balance, rewardsHistory }: { user:
 
 			{/* --- FIXED FLOATING BALANCE WIDGET --- */}
 			<div className="fixed top-20 right-4 md:right-8 z-50">
-				<div className="relative bg-white/90 backdrop-blur-md border border-emerald-100 p-3 pr-6 rounded-2xl flex items-center gap-4 shadow-xl ring-1 ring-black/5 min-w-[180px] transition-all animate-in fade-in slide-in-from-top-4 duration-700">
+				<div className="relative bg-white/90 backdrop-blur-md border border-emerald-100 p-3 pr-6 rounded-2xl flex items-center gap-4 shadow-xl ring-1 ring-black/5 min-w-45 transition-all animate-in fade-in slide-in-from-top-4 duration-700">
 					<div className="bg-emerald-100 p-2 rounded-xl">
 						<Coins className="w-6 h-6 text-emerald-600" />
 					</div>
@@ -190,7 +190,7 @@ export default function RewardsClient({ user, balance, rewardsHistory }: { user:
 			</div>
 
 			{/* --- HEADER --- */}
-			<div className="mb-8 pr-[200px]">
+			<div className="mb-8 pr-50">
 				<h1 className="text-3xl font-black text-gray-900 tracking-tight">Rewards Marketplace</h1>
 				<p className="text-gray-500 text-sm mt-1">Redeem your hard-earned points for real-world value.</p>
 			</div>
@@ -211,7 +211,7 @@ export default function RewardsClient({ user, balance, rewardsHistory }: { user:
 						{tab.id === 'my-rewards' && (
 							<AnimatePresence>
 								{newCouponsCount > 0 && (
-									<motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="bg-red-500 text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center rounded-full shadow-sm">
+									<motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="bg-red-500 text-white text-[10px] font-bold px-1.5 h-4 min-w-4 flex items-center justify-center rounded-full shadow-sm">
 										{newCouponsCount}
 									</motion.span>
 								)}
@@ -222,7 +222,7 @@ export default function RewardsClient({ user, balance, rewardsHistory }: { user:
 			</div>
 
 			{/* --- TAB CONTENT --- */}
-			<div className="min-h-[400px]">
+			<div className="min-h-100">
 
 				{/* 1. GENERAL REWARDS TAB */}
 				{activeTab === 'market' && (
