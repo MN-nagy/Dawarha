@@ -5,14 +5,14 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, XCircle } from "lucide-react";
 
-// 👇 1. Define searchParams as a Promise
+//  1. Define searchParams as a Promise
 export default async function VerifyPage({
 	searchParams
 }: {
 	searchParams: Promise<{ token: string, type: string, id?: string }>
 }) {
 
-	// 👇 2. Await the Promise before grabbing the data
+	//  2. Await the Promise before grabbing the data
 	const { token, type, id } = await searchParams;
 
 	if (!token || !type) redirect("/login");
