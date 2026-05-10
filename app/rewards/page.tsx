@@ -15,7 +15,6 @@ export default async function RewardsPage() {
 	const [dbUser] = await db.select().from(Users).where(eq(Users.email, session.user.email));
 	if (!dbUser) redirect("/login");
 
-	// --- NEW SECURITY CHECK ---
 	if (dbUser.role === "company_collector") {
 		return redirect("/dashboard");
 	}

@@ -29,8 +29,8 @@ export default async function DashboardPage() {
 		.orderBy(desc(Rewards.createdAt));
 
 	// 3. Fetch Collector Specific Data
-	let activeRoutes = [];
-	let completedPickups = [];
+	let activeRoutes: typeof myReports = [];
+	let completedPickups: typeof myReports = [];
 
 	if (userRole !== "member") {
 		activeRoutes = await db.select().from(Reports)
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
 	return (
 		<div className="min-h-screen bg-gray-50 flex flex-col">
 			<Header user={session.user} />
-			<main className="flex-grow max-w-7xl mx-auto w-full p-4 md:p-8 animate-in fade-in duration-500">
+			<main className="grow max-w-7xl mx-auto w-full p-4 md:p-8 animate-in fade-in duration-500">
 
 				<div className="mb-8">
 					<h1 className="text-3xl font-black text-gray-900 tracking-tight">

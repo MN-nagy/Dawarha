@@ -104,7 +104,7 @@ export function ExploreFeed({ initialReports, userRole }: { initialReports: any[
 	// Determine if user can claim
 	const canClaim = (scale: string) => {
 		if (userRole === "member") return { allowed: false, reason: "Members cannot claim waste. Upgrade your role in settings." };
-		if (userRole === "individual_collector" && scale === "large") return { allowed: false, reason: "Requires commercial vehicle (>20kg)." };
+		if (userRole === "solo_collector" && scale === "large") return { allowed: false, reason: "Requires commercial vehicle (>20kg)." };
 		if (userRole === "company_collector" && scale === "small") return { allowed: false, reason: "Too small for commercial fleet (<20kg)." };
 		return { allowed: true, reason: "" };
 	};

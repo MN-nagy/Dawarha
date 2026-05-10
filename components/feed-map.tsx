@@ -38,7 +38,7 @@ function MapController({ reports, activeId }: { reports: any[], activeId: number
 	return null;
 }
 
-// Our Map Themes Dictionary
+// Map themes Dictionary
 const MAP_THEMES = {
 	minimal: {
 		url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
@@ -55,7 +55,6 @@ const MAP_THEMES = {
 };
 
 export default function FeedMap({ reports, activeReportId }: { reports: any[], activeReportId: number | null }) {
-	// State to track our beautiful modern toggle
 	const [activeTheme, setActiveTheme] = useState<keyof typeof MAP_THEMES>("minimal");
 
 	const defaultCenter: [number, number] = [26.8206, 30.8025];
@@ -91,7 +90,7 @@ export default function FeedMap({ reports, activeReportId }: { reports: any[], a
 							zIndexOffset={activeReportId === report.id ? 1000 : 0}
 						>
 							<Popup className="rounded-xl overflow-hidden border-0 shadow-xl">
-								<div className="p-1 min-w-[200px]">
+								<div className="p-1 min-w-50">
 									<div className="flex justify-between items-center mb-2">
 										<Badge className="capitalize bg-emerald-100 text-emerald-800">{report.wasteType}</Badge>
 										<span className="text-xs font-bold text-gray-700">{report.totalWasteAmount}</span>
@@ -104,9 +103,9 @@ export default function FeedMap({ reports, activeReportId }: { reports: any[], a
 				})}
 			</MapContainer>
 
-			{/* 👇 MODERN TAILWIND THEME TOGGLE 👇 */}
+			{/* Tailwind themed Toggle */}
 			<div
-				className="absolute top-6 right-6 z-[1000] bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-gray-200 flex gap-1"
+				className="absolute top-6 right-6 z-1000 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-gray-200 flex gap-1"
 				onPointerDown={(e) => e.stopPropagation()} // Prevents dragging the map when clicking the buttons
 			>
 				<button
@@ -128,7 +127,6 @@ export default function FeedMap({ reports, activeReportId }: { reports: any[], a
 					<Satellite className="w-3.5 h-3.5" /> Satellite
 				</button>
 			</div>
-			{/* 👆 END TOGGLE 👆 */}
 		</div>
 	);
 }

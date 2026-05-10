@@ -16,7 +16,7 @@ export default async function FeedPage() {
 		redirect("/login");
 	}
 
-	// Call our new Radar Engine
+	// call radar engine
 	const data = await getPersonalizedFeed();
 
 	return (
@@ -42,7 +42,7 @@ export default async function FeedPage() {
 					</div>
 				</main>
 			) : (
-				/* If everything is good, load the massive Split-Screen UI! */
+				/* If everything is good, load the  Split-Screen UI */
 				<main className="grow flex flex-col h-[calc(100vh-73px)]">
 					<FeedDashboard initialReports={data.feed || []} userRole={data.userRole || "member"} />
 				</main>

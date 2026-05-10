@@ -5,13 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Leaf, Target, Truck, ShieldCheck, MapPin, CheckCircle, Loader2, Factory, Zap, Navigation, PieChart as PieChartIcon, Cloud, Activity } from "lucide-react";
+import { Leaf, Target, Truck, MapPin, CheckCircle, Loader2, Factory, Zap, Navigation, PieChart as PieChartIcon, Cloud, Activity } from "lucide-react";
 import { completeWastePickup } from "@/db/actions";
 import { toast } from "sonner";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Progress } from "@/components/ui/progress";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie } from "recharts";
 
-// Beautiful color palette for the Donut Chart
+// color palette for the Donut Chart
 const COLORS = {
 	plastic: "#10b981", // Emerald
 	metal: "#6366f1",   // Indigo
@@ -29,7 +28,7 @@ export function DashboardClient({
 	const [completingId, setCompletingId] = useState<number | null>(null);
 
 	const isMember = role === "member";
-	const isSolo = role === "individual_collector";
+	const isSolo = role === "solo_collector";
 	const isCompany = role === "company_collector";
 
 	const handleCompleteJob = async (reportId: number) => {
@@ -43,26 +42,6 @@ export function DashboardClient({
 		setCompletingId(null);
 	};
 
-	// --- Gamification Logic ---
-	const getMemberRank = (points: number) => {
-		if (points >= 500) return { title: "Earth Champion", color: "bg-emerald-500 text-white" };
-		if (points >= 150) return { title: "Forest Guardian", color: "bg-green-400 text-white" };
-		if (points >= 50) return { title: "Planter", color: "bg-lime-500 text-white" };
-		return { title: "Seedling", color: "bg-gray-200 text-gray-700" };
-	};
-
-	const getSoloRank = (jobs: number) => {
-		if (jobs >= 50) return { title: "Fleet Captain", color: "bg-indigo-600 text-white" };
-		if (jobs >= 10) return { title: "Route Master", color: "bg-blue-500 text-white" };
-		return { title: "Scrapper", color: "bg-gray-200 text-gray-700" };
-	};
-
-	const getCompanyTier = (jobs: number) => {
-		if (jobs >= 100) return { title: "Platinum Impact Hub", color: "bg-slate-800 text-slate-100" };
-		if (jobs >= 25) return { title: "Gold Sustainability Partner", color: "bg-amber-400 text-amber-900" };
-		return { title: "Registered Partner", color: "bg-gray-200 text-gray-700" };
-	};
-
 	const calculateCO2 = (pickups: any[]) => {
 		let totalKg = 0;
 		pickups.forEach(p => {
@@ -72,33 +51,6 @@ export function DashboardClient({
 		});
 		return Math.floor(totalKg * 1.5);
 	};
-
-	// --- Gamification Progress Calculators ---
-	const getMemberProgress = (points: number) => {
-		if (points < 50) return { next: "Planter", target: 50, percent: (points / 50) * 100 };
-		if (points < 150) return { next: "Forest Guardian", target: 150, percent: (points / 150) * 100 };
-		if (points < 500) return { next: "Earth Champion", target: 500, percent: (points / 500) * 100 };
-		return { next: "Max Rank Achieved", target: points, percent: 100 };
-	};
-
-	const getSoloProgress = (jobs: number) => {
-		if (jobs < 10) return { next: "Route Master", target: 10, percent: (jobs / 10) * 100 };
-		if (jobs < 50) return { next: "Fleet Captain", target: 50, percent: (jobs / 50) * 100 };
-		return { next: "Max Rank Achieved", target: jobs, percent: 100 };
-	};
-
-	const getCompanyProgress = (jobs: number) => {
-		if (jobs < 25) return { next: "Gold Partner", target: 25, percent: (jobs / 25) * 100 };
-		if (jobs < 100) return { next: "Platinum Hub", target: 100, percent: (jobs / 100) * 100 };
-		return { next: "Max Tier Achieved", target: jobs, percent: 100 };
-	};
-
-	// Calculate the current user's progress based on role
-	const progressData = isMember
-		? getMemberProgress(user.balance)
-		: isSolo
-			? getSoloProgress(completedPickups.length)
-			: getCompanyProgress(completedPickups.length);
 
 	// --- CHART DATA GENERATION ---
 	const { activityData, pointsData, pieData, co2Data } = useMemo(() => {
@@ -151,7 +103,12 @@ export function DashboardClient({
 			materialMap.set(type, (materialMap.get(type) || 0) + 1);
 		});
 
-		const formattedPie = Array.from(materialMap.entries()).map(([name, value]) => ({ name, value }));
+		// Inside your useMemo, change the formattedPie line to this:
+		const formattedPie = Array.from(materialMap.entries()).map(([name, value]) => ({
+			name,
+			value,
+			fill: COLORS[name as keyof typeof COLORS] || COLORS.other
+		}));
 
 		return { activityData: activityMap, pointsData: pointsMap, pieData: formattedPie, co2Data: co2Map };
 	}, [myReports, completedPickups, myRewards]);
@@ -161,8 +118,9 @@ export function DashboardClient({
 		<div className="space-y-8">
 
 			{/* --- TOP METRICS ROW --- */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<Card className="shadow-sm">
+			{/* Changed to a 2-column grid to look balanced without the gamification card */}
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<Card className="shadow-sm border-gray-200">
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
 						<CardTitle className="text-sm font-bold text-gray-600 uppercase tracking-wider">
 							{isMember ? "Total Balance" : isCompany ? "ESG Impact" : "Total Earnings"}
@@ -182,49 +140,17 @@ export function DashboardClient({
 					</CardContent>
 				</Card>
 
-				<Card className="shadow-sm">
+				<Card className="shadow-sm border-gray-200">
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
 						<CardTitle className="text-sm font-bold text-gray-600 uppercase tracking-wider">
-							{isMember ? "Lifetime Reports" : "Completed Routes"}
+							{isMember ? "Lifetime Reports" : isSolo ? "Routes & Reports" : "Completed Routes"}
 						</CardTitle>
 						<Target className="w-4 h-4 text-emerald-600" />
 					</CardHeader>
 					<CardContent>
 						<div className="text-3xl font-black text-gray-900">
-							{isMember ? myReports.length : completedPickups.length}
+							{isMember ? myReports.length : isSolo ? (completedPickups.length + myReports.length) : completedPickups.length}
 						</div>
-					</CardContent>
-				</Card>
-
-				<Card className={`shadow-sm border-0 ${isCompany ? 'bg-slate-900 text-white' : 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200'}`}>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className={`text-sm font-bold uppercase tracking-wider ${isCompany ? 'text-slate-400' : 'text-emerald-800'}`}>
-							{isCompany ? "Certification Tier" : "Current League"}
-						</CardTitle>
-						<ShieldCheck className={`w-5 h-5 ${isCompany ? 'text-slate-300' : 'text-emerald-600'}`} />
-					</CardHeader>
-					<CardContent>
-						<div className="mt-1 flex items-center justify-between">
-							{isMember && <Badge className={`text-sm px-3 py-1 ${getMemberRank(user.balance).color}`}>{getMemberRank(user.balance).title}</Badge>}
-							{isSolo && <Badge className={`text-sm px-3 py-1 ${getSoloRank(completedPickups.length).color}`}>{getSoloRank(completedPickups.length).title}</Badge>}
-							{isCompany && <Badge className={`text-sm px-3 py-1 ${getCompanyTier(completedPickups.length).color}`}>{getCompanyTier(completedPickups.length).title}</Badge>}
-
-							<span className={`text-xs font-bold ${isCompany ? 'text-slate-400' : 'text-emerald-700'}`}>
-								{isMember ? `${user.balance} / ${progressData.target} pts` : `${completedPickups.length} / ${progressData.target} jobs`}
-							</span>
-						</div>
-
-						{progressData.percent < 100 && (
-							<div className="mt-4">
-								<Progress
-									value={progressData.percent}
-									className={`h-2 ${isCompany ? 'bg-slate-800 [&>div]:bg-amber-400' : 'bg-emerald-200/50 [&>div]:bg-emerald-600'}`}
-								/>
-								<p className={`text-[10px] mt-1.5 font-semibold text-right ${isCompany ? 'text-slate-400' : 'text-emerald-700/80'}`}>
-									Next: {progressData.next}
-								</p>
-							</div>
-						)}
 					</CardContent>
 				</Card>
 			</div>
@@ -243,16 +169,20 @@ export function DashboardClient({
 						</CardHeader>
 						<CardContent>
 							{pieData.length === 0 ? (
-								<div className="h-[250px] flex items-center justify-center text-gray-400 text-sm font-medium">No material data yet.</div>
+								<div className="h-62.5 flex items-center justify-center text-gray-400 text-sm font-medium">No material data yet.</div>
 							) : (
-								<div className="h-[250px] w-full flex items-center">
+								<div className="h-62.5 w-full flex items-center">
 									<ResponsiveContainer width="100%" height="100%">
 										<PieChart>
-											<Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
-												{pieData.map((entry, index) => (
-													<Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS] || COLORS.other} />
-												))}
-											</Pie>
+											<Pie
+												data={pieData}
+												cx="50%" cy="50%"
+												innerRadius={60}
+												outerRadius={90}
+												paddingAngle={5}
+												dataKey="value"
+												stroke="none"
+											/>
 											<RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', textTransform: 'capitalize' }} />
 										</PieChart>
 									</ResponsiveContainer>
@@ -279,7 +209,7 @@ export function DashboardClient({
 							<CardDescription>Estimated kg of CO₂ saved per day.</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="h-[250px] w-full">
+							<div className="h-62.5 w-full">
 								<ResponsiveContainer width="100%" height="100%">
 									<LineChart data={co2Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
 										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -302,7 +232,7 @@ export function DashboardClient({
 							<CardDescription>Number of pickups completed over the last 7 days.</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="h-[250px] w-full">
+							<div className="h-62.5 w-full">
 								<ResponsiveContainer width="100%" height="100%">
 									<LineChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
 										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -325,7 +255,7 @@ export function DashboardClient({
 							<CardDescription>Your points gained and spent over the last 7 days.</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="h-[250px] w-full">
+							<div className="h-62.5 w-full">
 								<ResponsiveContainer width="100%" height="100%">
 									<LineChart data={pointsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
 										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -347,7 +277,7 @@ export function DashboardClient({
 							<CardDescription>{isMember ? "Waste reports you submitted." : "Your reports and collections."}</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="h-[250px] w-full">
+							<div className="h-62.5 w-full">
 								<ResponsiveContainer width="100%" height="100%">
 									<LineChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
 										<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -368,87 +298,96 @@ export function DashboardClient({
 			)}
 
 			{/* --- MAIN DASHBOARD TABLE --- */}
-			<div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-				<div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-					<h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-						{isMember ? "My Request History" : "Active Logistics Routes"}
-					</h2>
-					{!isMember && (
-						<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-							{activeRoutes.length} Pending Pickups
-						</Badge>
-					)}
-				</div>
+			<div className="space-y-6">
 
-				<div className="overflow-x-auto">
-					<Table>
-						<TableHeader>
-							<TableRow className="bg-white hover:bg-white">
-								<TableHead className="font-bold">Location</TableHead>
-								<TableHead className="font-bold">Payload</TableHead>
-								<TableHead className="font-bold">Status</TableHead>
-								<TableHead className="text-right font-bold">{isMember ? "Date" : "Action"}</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{/* IF MEMBER */}
-							{isMember && myReports.length === 0 && (
-								<TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-500">No reports yet. Click "Report Waste" to get started! 🌿</TableCell></TableRow>
-							)}
-							{isMember && myReports.map((report) => (
-								<TableRow key={report.id}>
-									<TableCell className="font-medium text-gray-900 max-w-[200px] truncate"><MapPin className="inline w-3 h-3 mr-1 text-gray-400" />{report.location}</TableCell>
-									<TableCell><span className="capitalize font-semibold text-emerald-700">{report.wasteType}</span> <span className="text-xs text-gray-500 ml-1">({report.totalWasteAmount})</span></TableCell>
-									<TableCell>
-										<Badge variant="outline" className={`
-                                            ${report.status === 'pending' ? 'bg-gray-100 text-gray-600' : ''}
-                                            ${report.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
-                                            ${report.status === 'collected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ''}
-                                        `}>
-											{report.status.replace('_', ' ')}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right text-gray-500 text-sm">{new Date(report.createdAt).toLocaleDateString()}</TableCell>
-								</TableRow>
-							))}
+				{/* TABLE 1: PERSONAL REPORT HISTORY (Members & Solos) */}
+				{(isMember || isSolo) && (
+					<div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+						<div className="p-6 border-b border-gray-100 bg-gray-50/50">
+							<h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">My Request History</h2>
+						</div>
+						<div className="overflow-x-auto">
+							<Table>
+								<TableHeader>
+									<TableRow className="bg-white hover:bg-white">
+										<TableHead className="font-bold">Location</TableHead>
+										<TableHead className="font-bold">Payload</TableHead>
+										<TableHead className="font-bold">Status</TableHead>
+										<TableHead className="text-right font-bold">Date</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{myReports.length === 0 && (
+										<TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-500">No reports yet. Click "Report Waste" to get started! 🌿</TableCell></TableRow>
+									)}
+									{myReports.map((report) => (
+										<TableRow key={report.id}>
+											<TableCell className="font-medium text-gray-900 max-w-50 truncate"><MapPin className="inline w-3 h-3 mr-1 text-gray-400" />{report.location}</TableCell>
+											<TableCell><span className="capitalize font-semibold text-emerald-700">{report.wasteType}</span> <span className="text-xs text-gray-500 ml-1">({report.totalWasteAmount})</span></TableCell>
+											<TableCell>
+												<Badge variant="outline" className={`
+													${report.status === 'pending' ? 'bg-gray-100 text-gray-600' : ''}
+													${report.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+													${report.status === 'collected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ''}
+												`}>
+													{report.status.replace('_', ' ')}
+												</Badge>
+											</TableCell>
+											<TableCell className="text-right text-gray-500 text-sm">{new Date(report.createdAt).toLocaleDateString()}</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+					</div>
+				)}
 
-							{/* IF COLLECTOR */}
-							{!isMember && activeRoutes.length === 0 && (
-								<TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-500">You have no active routes. Go to the Radar or Explore page to claim jobs!</TableCell></TableRow>
-							)}
-							{!isMember && activeRoutes.map((route) => (
-								<TableRow key={route.id} className="bg-blue-50/30">
-									<TableCell className="font-medium text-gray-900 max-w-[250px]"><div className="line-clamp-2 leading-snug"><MapPin className="inline w-3.5 h-3.5 mr-1 text-blue-500" />{route.location}</div></TableCell>
-									<TableCell><span className="capitalize font-bold text-gray-800">{route.wasteType}</span> <br /><span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 mt-0.5"><Truck className="w-3 h-3" /> {route.totalWasteAmount}</span></TableCell>
-									<TableCell><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-0 shadow-none">En Route</Badge></TableCell>
-									<TableCell className="text-right">
-										<div className="flex items-center justify-end gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${route.latitude},${route.longitude}`, "_blank")}
-												className="bg-white text-blue-600 border-blue-200 hover:bg-blue-50 shadow-sm transition-transform active:scale-95"
-											>
-												<Navigation className="w-3.5 h-3.5 mr-1.5" /> Navigate
-											</Button>
-
-											<Button
-												size="sm"
-												onClick={() => handleCompleteJob(route.id)}
-												disabled={completingId === route.id}
-												className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm transition-transform active:scale-95"
-											>
-												{completingId === route.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4 mr-1.5" /> Complete Job</>}
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
+				{/* TABLE 2: ACTIVE LOGISTICS ROUTES (Solos & Companies) */}
+				{(isCompany || isSolo) && (
+					<div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+						<div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+							<h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">Active Logistics Routes</h2>
+							<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+								{activeRoutes.length} Pending Pickups
+							</Badge>
+						</div>
+						<div className="overflow-x-auto">
+							<Table>
+								<TableHeader>
+									<TableRow className="bg-white hover:bg-white">
+										<TableHead className="font-bold">Location</TableHead>
+										<TableHead className="font-bold">Payload</TableHead>
+										<TableHead className="font-bold">Status</TableHead>
+										<TableHead className="text-right font-bold">Action</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{activeRoutes.length === 0 && (
+										<TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-500">You have no active routes. Go to the Radar or Explore page to claim jobs!</TableCell></TableRow>
+									)}
+									{activeRoutes.map((route) => (
+										<TableRow key={route.id} className="bg-blue-50/30">
+											<TableCell className="font-medium text-gray-900 max-w-62.5"><div className="line-clamp-2 leading-snug"><MapPin className="inline w-3.5 h-3.5 mr-1 text-blue-500" />{route.location}</div></TableCell>
+											<TableCell><span className="capitalize font-bold text-gray-800">{route.wasteType}</span> <br /><span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 mt-0.5"><Truck className="w-3 h-3" /> {route.totalWasteAmount}</span></TableCell>
+											<TableCell><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-0 shadow-none">En Route</Badge></TableCell>
+											<TableCell className="text-right">
+												<div className="flex items-center justify-end gap-2">
+													<Button size="sm" variant="outline" onClick={() => window.open(`https://maps.google.com/?q=${route.latitude},${route.longitude}`, "_blank")} className="bg-white text-blue-600 border-blue-200 hover:bg-blue-50 shadow-sm transition-transform active:scale-95">
+														<Navigation className="w-3.5 h-3.5 mr-1.5" /> Navigate
+													</Button>
+													<Button size="sm" onClick={() => handleCompleteJob(route.id)} disabled={completingId === route.id} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm transition-transform active:scale-95">
+														{completingId === route.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4 mr-1.5" /> Complete Job</>}
+													</Button>
+												</div>
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+					</div>
+				)}
 			</div>
-
 		</div>
 	);
 }

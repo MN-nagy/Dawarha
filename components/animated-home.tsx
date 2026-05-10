@@ -223,7 +223,7 @@ export default function AnimatedHome({ user, stats }: { user: any, stats: any })
 								<Coins className="w-10 h-10 text-amber-600" />
 							</div>
 							<h3 className="text-xl font-bold text-gray-900 mb-3">3. Earn Rewards</h3>
-							<p className="text-gray-600">Once the pickup is completed, points are securely transferred to your account. Rank up and climb the leaderboard!</p>
+							<p className="text-gray-600">Once the pickup is completed, points are securely transferred to your account</p>
 						</motion.div>
 					</motion.div>
 				</div>

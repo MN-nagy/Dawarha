@@ -782,7 +782,6 @@ export async function completeWastePickup(reportId: number) {
 
     // --- 2. CALCULATE COLLECTOR POINTS ---
     // Solo collectors get 15 points. Companies get 0.
-    // (We check dbUser.role since it syncs with UserProfiles)
     let collectorPoints = 0;
     if (dbUser.role === "solo_collector") {
       collectorPoints = 15;
@@ -801,6 +800,7 @@ export async function completeWastePickup(reportId: number) {
       .select()
       .from(Users)
       .where(eq(Users.id, report.userId));
+
     if (reporter) {
       const oldBalance = reporter.balance || 0;
       const newBalance = oldBalance + reporterPoints;
@@ -810,7 +810,6 @@ export async function completeWastePickup(reportId: number) {
         .set({ balance: newBalance })
         .where(eq(Users.id, report.userId));
 
-      // ... (keep the Rewards insert and standard Notification insert here) ...
       await db.insert(Rewards).values({
         userId: report.userId,
         points: reporterPoints,
@@ -824,23 +823,6 @@ export async function completeWastePickup(reportId: number) {
         type: "collection_complete",
         isRead: false,
       });
-
-      // --- PROMOTION DETECTOR (MEMBER) ---
-      let newRank = null;
-      if (oldBalance < 50 && newBalance >= 50) newRank = "Planter";
-      else if (oldBalance < 150 && newBalance >= 150)
-        newRank = "Forest Guardian";
-      else if (oldBalance < 500 && newBalance >= 500)
-        newRank = "Earth Champion";
-
-      if (newRank) {
-        await db.insert(Notifications).values({
-          userId: report.userId,
-          message: `🏆 Congratulations! You have been promoted to the ${newRank} rank!`,
-          type: "rank_up",
-          isRead: false,
-        });
-      }
     }
 
     // C. Reward the Solo Collector (If applicable)
@@ -856,28 +838,6 @@ export async function completeWastePickup(reportId: number) {
         description: `Reward for collecting ${report.wasteType} route`,
         collectionInfo: `Completed on ${new Date().toLocaleDateString()}`,
       });
-
-      // --- PROMOTION DETECTOR (SOLO COLLECTOR) ---
-      // Fetch total completed jobs to check for rank up
-      const collectorJobs = await db
-        .select()
-        .from(CollectedWastes)
-        .where(eq(CollectedWastes.collectorId, dbUser.id));
-      const oldJobCount = collectorJobs.length;
-      const newJobCount = oldJobCount + 1; // including the one we are about to insert below
-
-      let newRank = null;
-      if (oldJobCount < 10 && newJobCount >= 10) newRank = "Route Master";
-      else if (oldJobCount < 50 && newJobCount >= 50) newRank = "Fleet Captain";
-
-      if (newRank) {
-        await db.insert(Notifications).values({
-          userId: dbUser.id,
-          message: `🏆 Congratulations! You have been promoted to the ${newRank} rank!`,
-          type: "rank_up",
-          isRead: false,
-        });
-      }
     }
 
     // D. Log the Physical Collection Event for the Platform
@@ -886,31 +846,6 @@ export async function completeWastePickup(reportId: number) {
       collectorId: dbUser.id,
       status: "collected",
     });
-
-    // --- PROMOTION DETECTOR (COMPANY COLLECTOR) ---
-    if (dbUser.role === "company_collector") {
-      const companyJobs = await db
-        .select()
-        .from(CollectedWastes)
-        .where(eq(CollectedWastes.collectorId, dbUser.id));
-      const oldJobCount = companyJobs.length;
-      const newJobCount = oldJobCount + 1;
-
-      let newTier = null;
-      if (oldJobCount < 25 && newJobCount >= 25)
-        newTier = "Gold Sustainability Partner";
-      else if (oldJobCount < 100 && newJobCount >= 100)
-        newTier = "Platinum Impact Hub";
-
-      if (newTier) {
-        await db.insert(Notifications).values({
-          userId: dbUser.id,
-          message: `🏢 Certification Upgraded! You are now a ${newTier}!`,
-          type: "tier_up",
-          isRead: false,
-        });
-      }
-    }
 
     revalidatePath("/dashboard");
     return { success: true, pointsAwarded: reporterPoints };
@@ -921,6 +856,7 @@ export async function completeWastePickup(reportId: number) {
 }
 
 // --- Redeem Market --- \\
+//NOTE: Update with real info
 
 export async function redeemReward(userId: number, rewardId: number) {
   try {

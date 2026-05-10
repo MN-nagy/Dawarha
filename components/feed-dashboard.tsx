@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Weight, Truck, User, Navigation, Radar, Search, Filter, ArrowUpDown, MapPin } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { claimWasteReport } from "@/db/actions";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 
 const FeedMap = dynamic(() => import("./feed-map"), {
 	ssr: false,
@@ -57,8 +57,7 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 		return Array.from(materials);
 	}, [initialReports]);
 
-	// 👇 NEW: Extract unique city/neighborhood names and count them 👇
-	// 👇 UPDATED: Extract unique city names ONLY for the currently filtered materials 👇
+	// Extract unique city names ONLY for the currently filtered materials
 	const availableLocations = useMemo(() => {
 		const locationsMap = new Map<string, number>();
 
@@ -82,9 +81,9 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 		return Array.from(locationsMap.entries())
 			.map(([name, count]) => ({ name, count }))
 			.sort((a, b) => b.count - a.count);
-	}, [initialReports, materialFilter]); // 👈 Added materialFilter dependency
+	}, [initialReports, materialFilter]);
 
-	// 👇 NEW: Filter the suggestions based on what the user is typing 👇
+	// Filter the suggestions based on what the user is typing 
 	const filteredSuggestions = useMemo(() => {
 		if (!searchQuery) return [];
 		const lowerQuery = searchQuery.toLowerCase();
@@ -135,7 +134,7 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 		<div className="flex w-full h-full overflow-hidden bg-white">
 
 			{/* LEFT SIDEBAR */}
-			<div className="w-full lg:w-[450px] xl:w-[500px] h-full flex flex-col border-r border-gray-200 bg-gray-50/50 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] shrink-0">
+			<div className="w-full lg:w-112.5 xl:w-125 h-full flex flex-col border-r border-gray-200 bg-gray-50/50 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] shrink-0">
 
 				{/* Dashboard Header */}
 				<div className="p-5 bg-white border-b border-gray-100 z-20 shrink-0">
@@ -268,7 +267,7 @@ export function FeedDashboard({ initialReports, userRole }: { initialReports: an
 													e.stopPropagation(); // Prevents map from zooming when you click the button
 													handleClaim(report.id);
 												}}
-												className="h-7 text-xs bg-gray-900 hover:bg-emerald-600 transition-colors text-white min-w-[80px]"
+												className="h-7 text-xs bg-gray-900 hover:bg-emerald-600 transition-colors text-white min-w-20"
 											>
 												{claimingId === report.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : "Route"}
 											</Button>

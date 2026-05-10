@@ -141,7 +141,7 @@ export default function AboutClient({ user }: { user: any }) {
 					<div className="relative z-10">
 						<h2 className="text-2xl md:text-3xl font-bold mb-4">Join the Movement</h2>
 						<p className="text-emerald-100 mb-8 max-w-xl mx-auto text-lg">
-							Every single report, pickup, and collection matters. Start earning points, upgrading your rank, and making a tangible difference today.
+							Every single report, pickup, and collection matters. Start earning points  and making a tangible difference today.
 						</p>
 						{!user && (
 							<Button asChild size="lg" className="bg-white text-emerald-900 hover:bg-emerald-50 font-bold rounded-full shadow-lg hover:scale-105 transition-transform px-8 h-12 text-base">

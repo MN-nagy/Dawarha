@@ -10,15 +10,24 @@ import { Input } from "@/components/ui/input";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { User, Shield, MapPin, Leaf, Truck, Loader2, Save, Info, Trash2, CheckCircle, Navigation, Plus } from "lucide-react";
+import { Map } from "lucide-react";
+import { Upload, Clock, ShieldCheck } from "lucide-react";
+import { CreditCard, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Map } from "lucide-react";
 import dynamic from "next/dynamic";
-import { updateUserName, requestEmailChange, requestPasswordReset, submitCompanyVerification } from "@/db/actions";
 import { useUploadThing } from "@/lib/uploadthing";
-import { Upload, Clock, ShieldCheck } from "lucide-react";
-import { updateProfileSettings, addCompanyLocation, removeCompanyLocation, createStripeCheckoutSession, createStripePortalSession } from "@/db/actions"; // <-- Add createStripeCheckoutSession
-import { CreditCard, Zap } from "lucide-react";
+import {
+	updateProfileSettings,
+	addCompanyLocation,
+	removeCompanyLocation,
+	createStripeCheckoutSession,
+	createStripePortalSession,
+	updateUserName,
+	requestEmailChange,
+	requestPasswordReset,
+	submitCompanyVerification
+} from "@/db/actions";
 
 interface SettingsFormProps {
 	userId: number;
@@ -90,7 +99,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 		setPreferredWaste(newSelection);
 	}
 
-	// Sync saved locations if the server data updates (Next.js Server Action magic)
+	// Sync saved locations if the server data updates
 	useEffect(() => {
 		setSavedLocations(initialLocations);
 	}, [initialLocations]);
@@ -216,6 +225,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 
 
 	// for now
+	//NOTE: related to reset password
 	const handleReset = () => {
 		startTransition(async () => {
 			const res = await requestPasswordReset(baseUser.email);
@@ -253,7 +263,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 			<Card className="grow border-emerald-100 shadow-xl overflow-hidden min-h-125">
 				<CardContent className="p-6 sm:p-8">
 
-					{/* --- TAB 1: GENERAL INFO (PREMIUM SaaS REDESIGN) --- */}
+					{/* --- TAB 1: GENERAL INFO  --- */}
 					{activeTab === "general" && (
 						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
 							<div>
@@ -339,7 +349,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 								</div>
 							</div>
 
-							{/* 👇 NEW: Logistics Warning UI 👇 */}
+							{/*  Logistics Warning UI  */}
 							{role !== "member" && (
 								<div className="pt-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-100">
 									<div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-md border border-amber-100">
@@ -464,7 +474,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 										</div>
 									</div>
 
-									{/* 👇 NEW: PLATFORM CONTRIBUTION MODEL (For-Profits Only) 👇 */}
+									{/*  PLATFORM CONTRIBUTION MODEL (For-Profits Only)  */}
 									{companyType === "for-profit" && (
 										<div className="space-y-4 pt-4 border-t border-gray-100">
 											<Label className="text-base font-semibold text-gray-900">Platform Access Model</Label>
@@ -650,7 +660,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 												</div>
 
 												<div className="flex items-center gap-2">
-													{/* 👇 THE HOVER CARD MAP 👇 */}
+													{/*  THE HOVER CARD MAP */}
 													<HoverCard>
 														<HoverCardTrigger asChild>
 															<Button variant="outline" size="icon" className="h-8 w-8 text-blue-500 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
@@ -723,8 +733,6 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 						</motion.div>
 					)}
 
-
-
 					{/* --- TAB 4: BILLING & SUBSCRIPTION (FOR-PROFIT COMPANIES ONLY) --- */}
 					{activeTab === "billing" && role === "company_collector" && companyType === "for-profit" && (
 						<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -795,7 +803,7 @@ export function SettingsForm({ userId, baseUser, initialProfile, initialLocation
 										<Button
 											onClick={() => startTransition(async () => {
 												const res = await createStripeCheckoutSession(userId, baseUser.email);
-												if (res.url) window.location.href = res.url; // Redirects them to the Stripe Hosted Page!
+												if (res.url) window.location.href = res.url;  // Redirecting to the Stripe Hosted Page
 												else if (res.error) toast.error(res.error);
 											})}
 											disabled={isPending}
